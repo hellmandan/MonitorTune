@@ -1,0 +1,5 @@
+MonitorTune v3.0 — Workshop Edition
+
+Development snapshot adding workshop-oriented vehicle profiles, protocol support definitions, alerts, diagnostics helpers and session tooling.
+
+Catalogue entries do not imply verified support for every vehicle or enhanced OEM service.
