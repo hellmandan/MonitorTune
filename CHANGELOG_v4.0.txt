@@ -1,0 +1,5 @@
+MonitorTune v4.0 — Delco Workshop
+
+Development snapshot focused on the GM Delco/OSE workshop workflow, diagnostic helpers, vehicle support catalogue, logging and workshop UI refinements.
+
+Refer to IMPLEMENTATION_STATUS.md for current limitations and validation requirements.
