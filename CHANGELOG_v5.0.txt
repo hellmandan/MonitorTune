@@ -1,0 +1,13 @@
+MonitorTune v5.0 — TunerPro Workbench
+
+This source snapshot adds TunerPro definition inspection/import utilities and related tests to the Android workshop project.
+
+Included areas:
+- TunerPro XDF definition parsing/inspection.
+- Binary preview and bounds-oriented validation utilities.
+- Workshop engine and calibration analysis helpers.
+- Vehicle profiles, protocol support catalogue, diagnostics helpers and logging.
+- Unit tests for selected TunerPro and workshop-engine functionality.
+
+Important:
+This release snapshot must not be described as full ADX/XDF compatibility, universal vehicle coverage, or ECU flashing support. Those capabilities require additional implementation and validation.
