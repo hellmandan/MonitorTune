@@ -1,0 +1,3 @@
+MonitorTune v2.1
+
+Development snapshot refining the Android diagnostics foundation, communication helpers and workshop workflow.
