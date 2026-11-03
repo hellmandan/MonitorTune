@@ -1,0 +1,18 @@
+MonitorTune v2.0
+
+- Preserved USB ALDL OSE $11P V104 connection and BIN tuning workflow.
+- Added generic OBD-II Mode 03 stored DTC retrieval.
+- Added Mode 07 pending DTC retrieval.
+- Added Mode 0A permanent DTC retrieval.
+- Added periodic DTC refresh while connected.
+- Added Mode 09 PID 02 VIN request (single-frame response parsing).
+- Added Mode 02 PID 02 frame 00 response/support check.
+- Added DTC/VIN/freeze-frame status to the OBD-II diagnostic readout.
+- Bumped Android app version to 2.0 (versionCode 5).
+
+Known limitations:
+- No ISO-TP multi-frame VIN assembly.
+- Freeze-frame values are not yet decoded/displayed.
+- No manufacturer enhanced-code database or all-module scanning.
+- No DTC clearing, ECU writes, coding or bidirectional controls.
+- Hardware validation and Android build verification remain required.

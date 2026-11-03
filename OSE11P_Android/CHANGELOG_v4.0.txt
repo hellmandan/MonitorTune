@@ -1,0 +1,9 @@
+MONITORTUNE 4.0 — DELCO SPECIALIST + MULTI-MAKE SUPPORT CATALOGUE
+
+Adds structured Delco family catalogue for OSE $11P V104, Delco 808, Delco $12P and other controllers. $11P V104 is identified as the existing project-specific 8192-baud ALDL / 64 KiB BIN workflow. Other Delco entries remain disabled pending exact ECU/OS, transport, matching definition and checksum validation.
+
+Adds manufacturer profiles for GM/Holden/Chevrolet, Ford, Toyota/Lexus, Nissan/Infiniti, Mazda, Subaru, BMW/MINI, Mercedes-Benz, Volkswagen Group, Hyundai/Kia, Volvo and Honda/Acura. Make/model selection does not unlock proprietary diagnostics or writes.
+
+Protocol boundaries distinguish Bluetooth Classic ELM327 generic OBD-II from full raw CAN/CAN-FD, DoIP, secure gateway and OEM diagnostic stacks.
+
+Full Android build and physical ECU/adapter testing remain outstanding.

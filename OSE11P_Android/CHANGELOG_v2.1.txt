@@ -1,0 +1,21 @@
+MonitorTune 2.1 - development upgrade
+
+ADDED
+- ISO-TP single-frame and multi-frame response reassembly utility for diagnostic payloads.
+- VIN decoder now uses ISO-TP reassembly and validates a 17-character VIN.
+- Expanded generic DTC description catalogue with safe manufacturer-specific fallbacks.
+- Persistent vehicle profiles: make/model/year, engine, ECU, protocol, fuel, mass, notes and modifications.
+- CSV session logger with timestamps and generic OBD live-data channels.
+- Generic sensor plausibility warnings to flag impossible/out-of-range readings without claiming a fault.
+
+RETAINED
+- Existing OSE $11P V104 / USB ALDL source and tuning functionality.
+- Existing Bluetooth Classic ELM327 live data, DTC polling, dyno and AI diagnostic components.
+
+LIMITATIONS / SAFETY
+- ISO-TP reassembly handles response frames emitted by the adapter. It does not implement arbitrary raw-CAN transmission, custom flow-control timing, J1939 transport protocol, or manufacturer-specific diagnostic sessions.
+- DTC text is generic. Correct repair guidance requires make/model/year/ECU-specific definitions and service data.
+- SessionLogger and VehicleProfileStore are reusable components; they are not yet wired into visible screens or automatic recording controls in this source snapshot.
+- Sensor plausibility limits are broad generic checks, not calibration limits for every vehicle.
+- Road-dyno estimates are not a substitute for a calibrated chassis dyno. Mass, gradient, wind, drivetrain loss, tyre size, gear ratio and sensor accuracy materially affect results. Do not perform testing on public roads.
+- No ECU write, flash, coding, actuator test or DTC-clear operation is enabled by these additions.

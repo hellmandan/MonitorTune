@@ -1,0 +1,16 @@
+MONITORTUNE 3.0 — WORKSHOP EDITION / DIAGNOSTIC CORE
+
+This source-level upgrade adds normalized diagnostic values, selected SAE PID decoding, standard DTC decoding, capability-based ECU registry, fail-closed tune guard, road-dyno estimation, run comparison and technician report generation.
+
+The registry distinguishes the project-specific GM Delco $11P V104 path from generic OBD-II and unverified 808 / $12P / OEM-enhanced placeholders. A vehicle make/model label does not enable ECU writes.
+
+TuneGuard preflight requires exact $11P V104 identity, a 65,536-byte BIN, OS/checksum verification, backup, calibrated wideband and independent knock monitoring. This is not a substitute for BIN editor validation.
+
+Important boundaries:
+- Generic ELM327 does not guarantee all-makes/all-models diagnostics.
+- ABS, SRS, TCM, BCM, immobiliser, EV battery, coding, bidirectional tests and programming require validated module-specific definitions and hardware.
+- Delco 808 and $12P remain unverified placeholders.
+- Road-dyno output is an estimate; use a controlled facility and calibrated chassis dyno.
+- AI output and DTC descriptions are advisory.
+
+Hardware validation and full Android build were not performed in the original development environment.

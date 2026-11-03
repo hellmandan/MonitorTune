@@ -1,0 +1,7 @@
+MONITORTUNE v5.0 — DELCO CALIBRATION WORKBENCH
+
+Adds TunerPro XDF XML metadata and ADX XML metadata inspection, table/constant catalogue, conservative unsigned contiguous BIN preview with manually supplied offset, AFR-based VE correction advisor capped at +/-20%, and unit tests.
+
+Important: this is not full TunerPro compatibility. Complex address bases, bank switching, bit offsets, signed values, endian flags, strides, axes, equations, packet framing, checksums and ECU-specific requests require additional implementation. The importer does not automatically decode all ADX streams or apply XDF math to table values.
+
+No live ECU calibration write or flash operation is included. VE advice is review-only. Hardware and full Android validation remain outstanding.
