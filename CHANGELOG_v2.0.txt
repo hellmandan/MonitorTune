@@ -1,0 +1,3 @@
+MonitorTune v2.0
+
+Development snapshot expanding the initial OSE11P Android monitor with diagnostics and workshop-oriented components.
