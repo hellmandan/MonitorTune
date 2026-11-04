@@ -685,6 +685,31 @@ class MainActivity : ComponentActivity() {
         obdLiveReadout?.setPadding(dp(10), dp(8), dp(10), dp(8))
         obdLiveReadout?.background = rounded(Theme.CARD, 10)
         aiTab.addView(obdLiveReadout, lp(MATCH, WRAP, 0f, dp(5)))
+        val dtcControls = LinearLayout(this)
+        dtcControls.orientation = LinearLayout.HORIZONTAL
+        dtcControls.addView(btn("Read ECU Codes", Theme.BLUE) {
+            if (elmLink?.requestReadDtcs() == true) {
+                Toast.makeText(this, "Reading stored, pending and permanent ECU codes…", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "Connect a Bluetooth ELM327 first, or wait for the current ECU request to finish.", Toast.LENGTH_LONG).show()
+            }
+        }, lp(0, WRAP, 1f, dp(3)))
+        dtcControls.addView(btn("Clear ECU Codes", Color.parseColor("#B45309")) {
+            AlertDialog.Builder(this)
+                .setTitle("Clear emissions fault codes?")
+                .setMessage("This sends the standard OBD-II Mode 04 clear command to the engine ECU. It may erase stored and pending emissions codes, freeze-frame data and reset readiness monitors. It does not repair the fault. Permanent DTCs may remain until the ECU confirms the fault is fixed and its monitor completes. Save or record the codes before proceeding.")
+                .setPositiveButton("Clear codes") { _, _ ->
+                    if (elmLink?.requestClearCodes() == true) {
+                        Toast.makeText(this, "Clear command queued. Keep ignition on and adapter connected.", Toast.LENGTH_LONG).show()
+                    } else {
+                        Toast.makeText(this, "Connect a Bluetooth ELM327 first, or wait for the current ECU request to finish.", Toast.LENGTH_LONG).show()
+                    }
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }, lp(0, WRAP, 1f, dp(3)))
+        aiTab.addView(dtcControls, lp(MATCH, WRAP, 0f, dp(5)))
+        aiTab.addView(label("DTC tools use standard OBD-II engine/emissions services only. They do not scan or clear ABS, SRS, transmission or other manufacturer-specific modules.", 10f, Theme.WARN), lp(MATCH, WRAP, 0f, dp(4)))
         aiSummary = label("Waiting for ECU data", 20f, Theme.TEXT)
         aiSummary.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         aiSummary.setPadding(dp(12), dp(12), dp(12), dp(12))
@@ -925,7 +950,21 @@ class MainActivity : ComponentActivity() {
         val l = Elm327Link(bt, device,
             { obd -> runOnUiThread { handleObdSample(obd) } },
             { msg -> runOnUiThread {
-                setStatus(msg)
+                when {
+                    msg == "DTC_CLEAR_OK" -> {
+                        setStatus("ECU accepted clear command • DTCs reread")
+                        Toast.makeText(this, "ECU accepted Mode 04. Check the refreshed code list; permanent codes may remain.", Toast.LENGTH_LONG).show()
+                    }
+                    msg.startsWith("DTC_CLEAR_FAILED:") -> {
+                        setStatus("ECU did not confirm DTC clear")
+                        Toast.makeText(this, "DTC clear failed: ${msg.substringAfter(":").trim()}", Toast.LENGTH_LONG).show()
+                    }
+                    msg == "DTC_READ_COMPLETE" -> {
+                        setStatus("ECU fault codes refreshed")
+                        Toast.makeText(this, "ECU fault-code read complete. See Stored, Pending and Permanent DTCs above.", Toast.LENGTH_SHORT).show()
+                    }
+                    else -> setStatus(msg)
+                }
                 if (msg == "disconnected") {
                     elmLink = null
                     btnConnect.text = "Connect"
