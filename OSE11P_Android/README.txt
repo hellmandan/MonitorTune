@@ -60,8 +60,7 @@ DIAGNOSTIC LIMITATIONS — READ BEFORE USE
   this must not be interpreted as proof that the vehicle has no faults.
 - DTC descriptions are not yet vehicle/manufacturer-specific. A code identifier
   is not a diagnosis; verify with OEM service information before repairs.
-- No automatic code clearing is performed. No ECU write, adaptation reset,
-  actuator test, or coding command is sent by this upgrade.
+- No automatic code clearing is performed. A manual, confirmation-gated Mode 04 emissions DTC clear is available only in Bluetooth ELM327 mode. No adaptation reset, actuator test, module coding or ECU calibration write is sent by this feature.
 - Standard PID support depends on the ECU. A PID missing from the supported list
   must be treated as unavailable, not inferred from another sensor.
 - Generic OBD-II mode intentionally disables OSE VE Fill and Knock/Spark BIN edits.
@@ -174,7 +173,7 @@ IMPORTANT COMPATIBILITY LIMITS:
 - This is generic standards-based OBD-II, not literally every make/model/module/protocol. A vehicle must implement compatible standard OBD-II services and expose the requested PIDs. Standard OBD-II generally covers powertrain/emissions data, not every ABS, airbag, transmission, body, EV battery or manufacturer-specific module.
 - OEM-enhanced diagnostics, proprietary data PIDs, coding, adaptations, immobiliser functions and module programming require make/model-specific protocol definitions and often a more capable interface/software. They are not included by this generic ELM327 mode.
 - A standard ELM327 interface does not support every modern network. Many inexpensive clones have incomplete command sets, poor timing or incorrect protocol claims. Some newer vehicles use CAN-FD or Ethernet diagnostics and need a different interface; this app's ELM mode is Bluetooth Classic SPP, not BLE-only GATT.
-- No DTC read/clear workflow is included in this build. Gemini analysis is based on the live Mode 01 snapshot only, not stored/pending/permanent trouble codes.
+- Bluetooth ELM327 diagnostics can manually read stored (Mode 03), pending (Mode 07) and permanent (Mode 0A) engine/emissions DTCs, and can request a user-confirmed standard Mode 04 clear. Mode 04 can erase stored/pending emissions codes, freeze-frame data and readiness status; it does not repair the cause. Permanent DTCs may remain until the ECU confirms the fault is fixed and the relevant monitor completes. This is not an all-module scan/clear function. Gemini analysis remains advisory.
 - Fuel rail pressure PID 0x23 is queried only when advertised; it is not the same as every vehicle's low-side or direct-injection rail pressure measurement. Oil pressure is not a universal standard PID.
 - Hybrid/EV high-voltage battery, inverter and charging-system diagnostics are not included.
 - The existing VE Fill and Knock/Spark table editing remains specific to the OSE $11P BIN and must not be used as a generic ECU tuner.
