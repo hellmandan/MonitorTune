@@ -26,7 +26,6 @@ object TunerProDefinitionImporter {
      */
     private fun document(bytes: ByteArray) = DocumentBuilderFactory.newInstance().apply {
         isNamespaceAware = false
-        isXIncludeAware = false
         isExpandEntityReferences = false
         safeFeature("http://xml.org/sax/features/external-general-entities", false)
         safeFeature("http://xml.org/sax/features/external-parameter-entities", false)
