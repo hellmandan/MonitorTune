@@ -37,4 +37,25 @@ class TunerProDefinitionTest {
         assertEquals(((13.0 / 11.5) - 1.0) * 100.0, result.correctionPercent, 0.001)
         assertEquals(80.0 * (13.0 / 11.5), result.suggestedVe, 0.001)
     }
+
+    @Test fun importsXdfWithDoctypeWithoutResolvingExternalEntities() {
+        val xml = """<?xml version="1.0"?>
+            <!DOCTYPE XDFFORMAT SYSTEM "file:///this-file-must-not-be-read.dtd">
+            <XDFFORMAT><XDFTITLE>DOCTYPE XDF</XDFTITLE>
+            <XDFTABLE name="VE"><EMBEDDEDDATA mmedaddress="0x20" mmedelementsizebits="8" mmedrowcount="1" mmedcolcount="1"/></XDFTABLE>
+            </XDFFORMAT>""".toByteArray()
+        val imported = TunerProDefinitionImporter.importXdf(xml)
+        assertEquals("DOCTYPE XDF", imported.title)
+        assertEquals("VE", imported.items.single().name)
+    }
+
+    @Test fun rejectsNonXdfXml() {
+        try {
+            TunerProDefinitionImporter.importXdf("<root/>".toByteArray())
+            fail("Expected non-XDF XML to be rejected")
+        } catch (e: IllegalArgumentException) {
+            assertTrue(e.message!!.contains("TunerPro XDF"))
+        }
+    }
+
 }
