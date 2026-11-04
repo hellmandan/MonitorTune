@@ -38,8 +38,31 @@ class Elm327Link(
     private val onStatus: (String) -> Unit
 ) : Thread("ELM327-OBDII") {
     @Volatile var stopFlag = false
+    @Volatile private var readDtcRequested = false
+    @Volatile private var clearDtcRequested = false
+    @Volatile private var dtcRequestPending = false
     private var socket: BluetoothSocket? = null
     private val spp = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
+
+    /** Queue a fresh read of stored, pending and permanent emissions DTCs. */
+    fun requestReadDtcs(): Boolean {
+        synchronized(this) {
+            if (stopFlag || !isAlive || dtcRequestPending) return false
+            dtcRequestPending = true
+            readDtcRequested = true
+            return true
+        }
+    }
+
+    /** Queue SAE J1979 Mode 04. This clears emissions-related DTCs/readiness data only. */
+    fun requestClearCodes(): Boolean {
+        synchronized(this) {
+            if (stopFlag || !isAlive || dtcRequestPending) return false
+            dtcRequestPending = true
+            clearDtcRequested = true
+            return true
+        }
+    }
 
     override fun run() {
         try {
@@ -97,6 +120,30 @@ class Elm327Link(
                     if (bytes != null) values[pid] = bytes
                 }
                 cycle++
+                // User-requested DTC operations run on this worker thread so ELM commands
+                // never collide with live PID polling on the Bluetooth socket.
+                if (clearDtcRequested) {
+                    clearDtcRequested = false
+                    val response = command("04", 3000)
+                    val accepted = response.contains("44") && !response.contains("NODATA") &&
+                        !response.contains("ERROR") && !response.contains("UNABLE") && !response.contains("CANERROR")
+                    if (accepted) {
+                        storedDtc = readDtcs(command("03", 2500), "43")
+                        pendingDtc = readDtcs(command("07", 2500), "47")
+                        permanentDtc = readDtcs(command("0A", 2500), "4A")
+                        onStatus("DTC_CLEAR_OK")
+                    } else {
+                        onStatus("DTC_CLEAR_FAILED: ${response.ifBlank { "No ECU response" }}")
+                    }
+                    synchronized(this) { dtcRequestPending = false }
+                } else if (readDtcRequested) {
+                    readDtcRequested = false
+                    storedDtc = readDtcs(command("03", 2500), "43")
+                    pendingDtc = readDtcs(command("07", 2500), "47")
+                    permanentDtc = readDtcs(command("0A", 2500), "4A")
+                    onStatus("DTC_READ_COMPLETE")
+                    synchronized(this) { dtcRequestPending = false }
+                }
                 // Diagnostic trouble codes are refreshed less often to avoid slowing live gauges.
                 if (cycle % 30 == 0) {
                     storedDtc = readDtcs(command("03", 2200), "43")
