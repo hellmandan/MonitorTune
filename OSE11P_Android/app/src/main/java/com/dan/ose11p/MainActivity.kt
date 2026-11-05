@@ -1365,8 +1365,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == 712 && grantResults.isNotEmpty() && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
-            Toast.makeText(this, "Bluetooth permission granted. Tap Connect and choose Bluetooth ELM327.", Toast.LENGTH_LONG).show()
+        if ((requestCode == 712 || requestCode == 713) && grantResults.isNotEmpty() && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            Toast.makeText(this, "Bluetooth permission granted. Tap Connect again and select the paired adapter.", Toast.LENGTH_LONG).show()
         }
     }
 
