@@ -1100,7 +1100,7 @@ class MainActivity : ComponentActivity() {
             if (v4Transport == null) setV4Status("Connect a raw ALDL interface first.")
             else v4Io.execute {
                 try {
-                    V4MacroExecutor(d, v4Transport!!).execute(macro) { _, request, result ->
+                    V4MacroExecutor(d, v4Transport!!).execute(macro.copy(requiresConfirmation = sensitive)) { _, request, result ->
                         runOnUiThread { displayV4Result(result, request) }
                     }
                     runOnUiThread { setV4Status("Macro complete: ${macro.name}") }
