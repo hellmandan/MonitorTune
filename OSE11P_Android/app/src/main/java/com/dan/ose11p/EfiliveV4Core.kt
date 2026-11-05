@@ -40,8 +40,7 @@ data class V4Request(
     val responseLength: Int = 0,
     val checksum: V4Checksum = V4Checksum.NONE,
     val notes: String = "",
-    val pollIntervalMs: Long = 0
-)
+    val pollIntervalMs: Long = 0,\n    val requiresConfirmation: Boolean = false\n)
 
 data class V4DtcRule(val code: String, val description: String, val offset: Int, val mask: Int = 0xff, val value: Int)\ndata class V4MacroStep(val requestId: String, val delayMs: Long = 100)
 data class V4Macro(val id: String, val name: String, val steps: List<V4MacroStep>, val requiresConfirmation: Boolean = false)
@@ -180,7 +179,7 @@ object V4DefinitionImporter {
                 e.attr("id", "r$i"), e.attr("name", "Request ${i + 1}"),
                 e.attr("tx"), e.attr("responseOffset", "0").toInt(),
                 e.attr("responseLength", "0").toInt(),
-                V4Checksum.valueOf(e.attr("checksum", "NONE").uppercase()), e.attr("notes"), e.attr("pollIntervalMs", "0").toLong()
+                V4Checksum.valueOf(e.attr("checksum", "NONE").uppercase()), e.attr("notes"), e.attr("pollIntervalMs", "0").toLong(), e.attr("requiresConfirmation", "false").toBoolean()
             ).also { V4Hex.parse(it.txHex); require(it.responseOffset >= 0 && it.responseLength >= 0 && it.pollIntervalMs in 0..60000) }
         }
         val macros = root.children("macro").mapIndexed { i, e ->
@@ -190,9 +189,9 @@ object V4DefinitionImporter {
             }
             V4Macro(e.attr("id", "m$i"), e.attr("name", "Macro ${i + 1}"), steps, e.attr("requiresConfirmation", "false").toBoolean())
         }
-        val dtcRules = root.children("dtc").map { e ->\n            V4DtcRule(e.attr("code"), e.attr("description"), e.attr("offset").toInt(), e.attr("mask", "255").toInt(), e.attr("value").toInt())\n                .also { require(it.code.isNotBlank() && it.offset >= 0 && it.mask in 0..255 && it.value in 0..255) }\n        }\n        val readDtc = root.attr("dtcReadRequestId").ifBlank { null }\n        val clearDtc = root.attr("dtcClearRequestId").ifBlank { null }\n        require(readDtc == null || requests.any { it.id == readDtc }) { "DTC read request id is not defined." }\n        require(clearDtc == null || requests.any { it.id == clearDtc }) { "DTC clear request id is not defined." }\n        val baud = root.attr("baud", "8192").toInt()
+        require(root.attr("dataBits", "8").toInt() in 5..8) { "Unsupported data bit count." }\n        require(root.attr("stopBits", "1").toInt() in 1..2) { "Unsupported stop bit count." }\n        require(root.attr("parity", "NONE").uppercase() in setOf("NONE", "ODD", "EVEN", "MARK", "SPACE")) { "Unsupported parity." }\n        val dtcRules = root.children("dtc").map { e ->\n            V4DtcRule(e.attr("code"), e.attr("description"), e.attr("offset").toInt(), e.attr("mask", "255").toInt(), e.attr("value").toInt())\n                .also { require(it.code.isNotBlank() && it.offset >= 0 && it.mask in 0..255 && it.value in 0..255) }\n        }\n        val readDtc = root.attr("dtcReadRequestId").ifBlank { null }\n        val clearDtc = root.attr("dtcClearRequestId").ifBlank { null }\n        require(readDtc == null || requests.any { it.id == readDtc }) { "DTC read request id is not defined." }\n        require(clearDtc == null || requests.any { it.id == clearDtc }) { "DTC clear request id is not defined." }\n        val baud = root.attr("baud", "8192").toInt()
         require(baud in 300..1000000) { "Invalid serial baud rate." }
-        return V4VehicleDefinition(root.attr("id", "custom"), root.attr("name", "Imported vehicle"), baud,
+        val ids = (parameters.map { it.id } + requests.map { it.id } + macros.map { it.id })\n        require(ids.size == ids.distinct().size) { "Definition contains duplicate ids." }\n        return V4VehicleDefinition(root.attr("id", "custom"), root.attr("name", "Imported vehicle"), baud,
             root.attr("dataBits", "8").toInt(), root.attr("stopBits", "1").toInt(), root.attr("parity", "NONE"),
             parameters, requests, macros,
             listOf("Custom MonitorTuneV4 XML loaded. It is not a verified EFILive V4 definition unless independently translated and checked.",
@@ -243,7 +242,7 @@ class V4MacroExecutor(private val definition: V4VehicleDefinition, private val t
         macro.steps.forEachIndexed { index, step ->
             val request = definition.requests.firstOrNull { it.id == step.requestId }
                 ?: error("Macro references missing request ${step.requestId}")
-            val tx = V4Hex.parse(request.txHex)
+            require(!request.requiresConfirmation || macro.requiresConfirmation) { "Macro requires explicit confirmation because it contains a state-changing request." }\n            val tx = V4Hex.parse(request.txHex)
             transport.write(tx)
             val rx = transport.read(1200)
             require(rx.isNotEmpty()) { "No response to ${request.name}" }
