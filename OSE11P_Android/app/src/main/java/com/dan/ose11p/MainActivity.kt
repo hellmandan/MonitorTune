@@ -1463,7 +1463,8 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             })
-        link = l        btnConnect.text = "Disconnect"
+        link = l
+        btnConnect.text = "Disconnect"
         btnConnect.background = rounded(Color.parseColor("#B91C1C"), 10)
         l.start()
     }
