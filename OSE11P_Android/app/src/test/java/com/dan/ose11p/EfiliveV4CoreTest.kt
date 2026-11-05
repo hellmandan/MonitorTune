@@ -57,4 +57,36 @@ class EfLiveV4CoreTest {
         assertEquals(2, chart.get("rpm").size)
         assertEquals(2.0, chart.get("rpm").first().value, 0.0)
     }
+    @Test fun decodesVehicleSpecificDtcRules() {
+        val request = V4Request("dtc", "Read DTCs", "01", responseOffset = 1, responseLength = 2)
+        val definition = V4VehicleDefinition(
+            "test", "DTC test", 8192,
+            requests = listOf(request),
+            dtcRules = listOf(V4DtcRule("12", "Example fault", offset = 2, mask = 0x0f, value = 0x03))
+        )
+        val codes = V4DtcDecoder.decode(byteArrayOf(0x55, 0x10, 0x23), definition, request)
+        assertEquals(listOf("12" to "Example fault"), codes)
+    }
+
+    @Test fun importsConfiguredModuleTimingAndDtcRequests() {
+        val xml = """<MonitorTuneV4 id="demo" name="ECM" baud="8192" dtcReadRequestId="dtc">
+          <request id="dtc" name="Read DTC" module="Powertrain" tx="01" responseOffset="1" responseLength="2"
+                   responseTimeoutMs="2200" quietTimeMs="75" pollIntervalMs="0"/>
+          <dtc code="12" description="Example fault" offset="2" mask="15" value="3"/>
+        </MonitorTuneV4>""".toByteArray()
+        val def = V4DefinitionImporter.import(xml)
+        assertEquals("Powertrain", def.requests.single().module)
+        assertEquals(2200, def.requests.single().responseTimeoutMs)
+        assertEquals(75, def.requests.single().quietTimeMs)
+        assertEquals("dtc", def.dtcReadRequestId)
+        assertEquals("12", def.dtcRules.single().code)
+    }
+
+    @Test fun rejectsPollingTooFastAndMissingDtcRequest() {
+        val tooFast = """<MonitorTuneV4><request id="r" tx="01" pollIntervalMs="20"/></MonitorTuneV4>""".toByteArray()
+        val invalidDtc = """<MonitorTuneV4 dtcReadRequestId="missing"><request id="r" tx="01"/></MonitorTuneV4>""".toByteArray()
+        try { V4DefinitionImporter.import(tooFast); fail("Polling interval below supported floor must be rejected by runtime config") } catch (_: Exception) {}
+        try { V4DefinitionImporter.import(invalidDtc); fail("Unknown DTC request must be rejected") } catch (_: Exception) {}
+    }
+
 }
