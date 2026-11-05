@@ -430,7 +430,6 @@ class MainActivity : ComponentActivity() {
             gaugeRow(gCool, gSpark)
         }
 
-        val metrics = LinearLayout(this).apply { gravity = android.view.Gravity.CENTER }
         val afr = dashMetric("WIDEBAND AFR")
         val map = dashMetric("MANIFOLD PRESSURE")
         val tps = dashMetric("THROTTLE")
@@ -439,10 +438,20 @@ class MainActivity : ComponentActivity() {
         dashMap = map.second
         dashTps = tps.second
         dashKnock = knock.second
-        for (card in listOf(afr.first, map.first, tps.first, knock.first)) {
-            metrics.addView(card, lp(0, WRAP, 1f, dp(3)))
+        if (wide()) {
+            val metrics = LinearLayout(this).apply { gravity = android.view.Gravity.CENTER }
+            for (card in listOf(afr.first, map.first, tps.first, knock.first)) metrics.addView(card, lp(0, WRAP, 1f, dp(3)))
+            dashTab.addView(metrics, lp(MATCH, WRAP, 0f, dp(3)))
+        } else {
+            fun metricRow(a: View, b: View) {
+                val row = LinearLayout(this).apply { gravity = android.view.Gravity.CENTER }
+                row.addView(a, lp(0, WRAP, 1f, dp(3)))
+                row.addView(b, lp(0, WRAP, 1f, dp(3)))
+                dashTab.addView(row, lp(MATCH, WRAP, 0f, dp(2)))
+            }
+            metricRow(afr.first, map.first)
+            metricRow(tps.first, knock.first)
         }
-        dashTab.addView(metrics, lp(MATCH, WRAP, 0f, dp(3)))
         dashTab.addView(label("Values are live ECU readings. N/A means the connected protocol does not supply that parameter.", 9f, Theme.MUTED), lp(MATCH, WRAP, 0f, dp(2)))
     }
 
