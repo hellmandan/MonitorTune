@@ -211,24 +211,51 @@ object EcuRegistry {
 }
 
 data class DelcoFamily(val id: String, val name: String, val transport: String, val supportLevel: String, val definitionStatus: String, val requirements: List<String>)
-data class ManufacturerSupport(val displayName: String, val commonProtocols: List<String>, val genericObd2Note: String, val enhancedStatus: String)
+data class ManufacturerSupport(
+    val id: String,
+    val displayName: String,
+    val commonProtocols: List<String>,
+    val genericObd2Note: String,
+    val enhancedStatus: String
+)
+data class DelcoMatch(val supported: Boolean, val explanation: String)
+
 object VehicleSupportCatalog {
     val delcoFamilies = listOf(
-        DelcoFamily("OSE_11P_V104", "GM Delco OSE \$11P V104", "8192 baud ALDL", "Specialist project support", "Matching V104 definitions required", listOf("Exact ECM OS", "Verified ADX/XDF", "Raw ALDL interface")),
+        DelcoFamily("OSE_11P_V104", "GM Delco OSE $11P V104", "8192 baud ALDL", "Specialist project support", "Matching V104 definitions required", listOf("Exact ECM OS", "Verified ADX/XDF", "Raw ALDL interface")),
         DelcoFamily("DELCO_OTHER", "Other Delco P4/P6/OBD-I families", "Vehicle-specific ALDL", "Catalogue only", "Not enabled by assumption", listOf("Exact ECM service definition", "Verified protocol and checksum")),
         DelcoFamily("GM_OBD2", "GM OBD-II controllers", "SAE J1979 / OEM enhanced", "Generic OBD-II only in this path", "Enhanced definitions required", listOf("Compatible adapter", "OEM-specific PID definition"))
     )
     val manufacturers = listOf(
-        ManufacturerSupport("GM", listOf("SAE J1850 VPW", "ISO 9141-2", "ISO 14230", "CAN"), "Generic engine/emissions PIDs where supported.", "Enhanced module diagnostics require OEM-specific implementation."),
-        ManufacturerSupport("Ford", listOf("ISO 9141", "PWM", "CAN"), "Generic engine/emissions PIDs where supported.", "Enhanced module diagnostics require OEM-specific implementation."),
-        ManufacturerSupport("Toyota", listOf("ISO 9141", "KWP2000", "CAN"), "Generic engine/emissions PIDs where supported.", "Enhanced module diagnostics require OEM-specific implementation."),
-        ManufacturerSupport("Other makes", listOf("ISO 9141", "KWP2000", "CAN"), "Generic engine/emissions PIDs where supported.", "No full OEM coverage is implied.")
+        ManufacturerSupport("GM", "General Motors", listOf("SAE J1850 VPW", "ISO 9141-2", "ISO 14230", "CAN"), "Generic emissions PIDs are available where supported.", "Enhanced OEM module access requires manufacturer-specific definitions."),
+        ManufacturerSupport("FORD", "Ford", listOf("ISO 9141", "PWM", "CAN"), "Generic emissions PIDs are available where supported.", "Enhanced OEM module access requires manufacturer-specific definitions."),
+        ManufacturerSupport("TOYOTA", "Toyota", listOf("ISO 9141", "KWP2000", "CAN"), "Generic emissions PIDs are available where supported.", "Enhanced OEM module access requires manufacturer-specific definitions."),
+        ManufacturerSupport("HONDA", "Honda", listOf("ISO 9141", "KWP2000", "CAN"), "Generic emissions PIDs are available where supported.", "Enhanced OEM module access requires manufacturer-specific definitions."),
+        ManufacturerSupport("MAZDA", "Mazda", listOf("ISO 9141", "CAN"), "Generic emissions PIDs are available where supported.", "Enhanced OEM module access requires manufacturer-specific definitions."),
+        ManufacturerSupport("NISSAN", "Nissan", listOf("ISO 9141", "KWP2000", "CAN"), "Generic emissions PIDs are available where supported.", "Enhanced OEM module access requires manufacturer-specific definitions."),
+        ManufacturerSupport("HYUNDAI", "Hyundai", listOf("ISO 9141", "CAN"), "Generic emissions PIDs are available where supported.", "Enhanced OEM module access requires manufacturer-specific definitions."),
+        ManufacturerSupport("KIA", "Kia", listOf("ISO 9141", "CAN"), "Generic emissions PIDs are available where supported.", "Enhanced OEM module access requires manufacturer-specific definitions."),
+        ManufacturerSupport("VW", "Volkswagen", listOf("ISO 9141", "KWP2000", "CAN"), "Generic emissions PIDs are available where supported.", "Enhanced OEM module access requires manufacturer-specific definitions."),
+        ManufacturerSupport("BMW", "BMW", listOf("ISO 9141", "CAN"), "Generic emissions PIDs are available where supported.", "Enhanced OEM module access requires manufacturer-specific definitions."),
+        ManufacturerSupport("MERCEDES", "Mercedes-Benz", listOf("ISO 9141", "CAN"), "Generic emissions PIDs are available where supported.", "Enhanced OEM module access requires manufacturer-specific definitions."),
+        ManufacturerSupport("SUBARU", "Subaru", listOf("ISO 9141", "CAN"), "Generic emissions PIDs are available where supported.", "Enhanced OEM module access requires manufacturer-specific definitions.")
     )
     val protocolNotes = listOf(
         "ELM327 is a command interpreter and is not a transparent raw UART ALDL bridge.",
         "USB serial adapter chipset support does not prove correct ALDL voltage levels or wiring.",
         "Confirm protocol, baud, checksum, pinout and ECM service data before connection."
     )
+
+    fun manufacturer(id: String): ManufacturerSupport? =
+        manufacturers.firstOrNull { it.id.equals(id, true) || it.displayName.equals(id, true) }
+
+    fun matchDelco(id: String, operatingSystem: String?, fingerprint: String?): DelcoMatch {
+        if (id != "OSE_11P_V104") return DelcoMatch(false, "ECM family is not on the verified OSE 11P V104 allowlist.")
+        if (operatingSystem != "OSE $11P V104") return DelcoMatch(false, "Operating system does not exactly match OSE 11P V104.")
+        if (fingerprint == null || !fingerprint.matches(Regex("sha256:[0-9a-fA-F]{64}")))
+            return DelcoMatch(false, "A verified SHA-256 definition fingerprint is required.")
+        return DelcoMatch(false, "Definition fingerprint is not on the signed allowlist; write support remains locked.")
+    }
 }
 
 enum class DtcStatus { STORED, PENDING, PERMANENT }
