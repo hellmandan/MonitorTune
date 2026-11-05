@@ -40,7 +40,7 @@ object V4MacroStore {
                     val step = stepsJson.optJSONObject(j) ?: return@mapNotNull null
                     val id = step.optString("requestId")
                     val delay = step.optLong("delayMs", 100)
-                    if (id.isBlank() || delay !in 0..60000) null else V4MacroStep(id, delay)
+                    if (id.isBlank() || delay !in 0L..60000L) null else V4MacroStep(id, delay)
                 }
                 val id = item.optString("id")
                 val name = item.optString("name")
