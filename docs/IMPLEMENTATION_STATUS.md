@@ -10,6 +10,7 @@ MonitorTune now contains an independent, data-driven ALDL scanner core inspired 
 - A secure XML importer for the documented MonitorTuneV4 interchange schema (not arbitrary EFILive XML).
 - Macro model with ordered request steps, delays and an explicit confirmation flag for sensitive macros.
 - Raw serial transport interface contract; an Android USB/serial driver adapter and verified per-vehicle timing/framing are still required before live ECU I/O.
+- V4 Lab UI for importing MonitorTuneV4 XML, manually decoding pasted raw response frames, reviewing configured macros and exporting decoded CSV sessions.
 - Decoded session recorder with CSV export and bounded chart-history model.
 - Unit tests for hex parsing, checksum policies, endian/signed scaling, schema validation, CSV and chart retention.
 
@@ -18,14 +19,14 @@ MonitorTune now contains an independent, data-driven ALDL scanner core inspired 
 | V4 concept | MonitorTune implementation | Status |
 |---|---|---|
 | Vehicle definitions | MonitorTuneV4 XML model/importer | Partial; proprietary V4 XML dialect not reverse-engineered |
-| Modules / requests | Explicit request definitions and raw bytes | Core model present; UI and ECU-specific definitions needed |
-| F6 Macros | Ordered macro model and confirmation metadata | Core model present; live execution engine/UI pending |
-| F7 ALDL table | Parameter decoder and decoded value model | Core present; live transport integration pending |
-| F8 Dashboard | Decoded values and bounded chart series | Data model present; dashboard UI pending |
+| Modules / requests | Explicit request definitions and raw bytes | Definition model/importer present; no universal vehicle request catalogue |
+| F6 Macros | Ordered macro model and confirmation metadata | Review-only macro list UI; live execution intentionally disabled |
+| F7 ALDL table | Parameter decoder and decoded value model | Manual raw-frame decode UI; live transport integration pending |
+| F8 Dashboard | Decoded values and bounded chart series | Decoded-value panel and chart-history model; live dashboard graph UI pending |
 | Read DTCs | Vehicle-specific request/parameter definitions | Not supplied by generic core |
 | Clear DTCs | No universal command is assumed | Not enabled; requires verified vehicle-specific definition and explicit confirmation |
 | Raw serial monitor | Hex parser/formatter and transport interface | UI/driver integration pending |
-| Logging / charts | CSV recorder and bounded chart history | Core present; live capture integration pending |
+| Logging / charts | CSV recorder and bounded chart history | Manual-frame session CSV export and bounded chart-history model; continuous live capture/graph UI pending |
 
 ## Critical hardware/protocol limitations
 
