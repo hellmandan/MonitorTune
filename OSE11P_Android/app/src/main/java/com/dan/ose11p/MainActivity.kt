@@ -104,6 +104,12 @@ class MainActivity : ComponentActivity() {
     private var definitionImportMode = "XDF"
     private var importedDefinitionSummary = "No TunerPro definition imported this session."
     private var importedXdf: ImportedDefinition? = null
+    private var v4Definition: V4VehicleDefinition? = null
+    private var v4LastDecoded: V4FrameResult? = null
+    private var v4Recorder = V4SessionRecorder()
+    private var v4Chart = V4ChartHistory()
+    private var v4Info: TextView? = null
+    private var v4Values: TextView? = null
     private val aiMonitor = AiMonitor()
     private var aiSummary: TextView? = null
     private var aiDataStatus: TextView? = null
@@ -177,6 +183,16 @@ class MainActivity : ComponentActivity() {
             AlertDialog.Builder(this).setTitle("TunerPro ${imported.format} imported")
                 .setMessage(importedDefinitionSummary.take(12000)).setPositiveButton("OK", null).show()
         } catch (e: Exception) { Toast.makeText(this, "Definition import failed: ${e.message}", Toast.LENGTH_LONG).show() }
+    }
+
+    private val openV4Definition = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        if (uri != null) try {
+            val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: error("Could not read definition")
+            v4Definition = V4DefinitionImporter.import(bytes)
+            v4Recorder = V4SessionRecorder(); v4Chart.clear(); v4LastDecoded = null
+            refreshV4Definition()
+            Toast.makeText(this, "MonitorTune V4 definition imported", Toast.LENGTH_LONG).show()
+        } catch (e: Exception) { Toast.makeText(this, "V4 definition import failed: ${e.message}", Toast.LENGTH_LONG).show() }
     }
 
     private val openXdfPreviewBin = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
@@ -487,7 +503,7 @@ class MainActivity : ComponentActivity() {
 
         // bottom navigation (built here, attached under the content below)
         val navBar = LinearLayout(this)
-        val names = arrayOf("Log", "Dash", "VE Fill", "Knock / Spark", "DYNO", "AI Doctor", "Workshop")
+        val names = arrayOf("Log", "Dash", "VE Fill", "Knock / Spark", "DYNO", "AI Doctor", "Workshop", "V4 Lab")
         tabButtons = Array(names.size) { k ->
             val b = btn(names[k], Theme.CARD) { selectTab(k) }
             b.minimumHeight = dp(46)
@@ -495,7 +511,7 @@ class MainActivity : ComponentActivity() {
             b.minimumWidth = dp(82)
             b
         }
-        for (k in intArrayOf(1, 0, 2, 3, 4, 5, 6)) navBar.addView(tabButtons[k], lp(WRAP, WRAP, 0f, dp(3)))
+        for (k in intArrayOf(1, 0, 2, 3, 4, 5, 6, 7)) navBar.addView(tabButtons[k], lp(WRAP, WRAP, 0f, dp(3)))
         navScroll = HorizontalScrollView(this)
         navScroll.isHorizontalScrollBarEnabled = false
         navScroll.addView(navBar)
@@ -790,7 +806,55 @@ class MainActivity : ComponentActivity() {
         val workshopRoot = ScrollView(this)
         workshopRoot.addView(workshopTab)
         refreshWorkshopProfile()
-        tabs = arrayOf<View>(logTab, dashTab, veTab, spTab, dynoTab, aiRoot, workshopRoot)
+
+        // EFILive V4-style offline definition / frame inspection workspace.
+        val v4Tab = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(10), dp(10), dp(10), dp(10))
+        }
+        v4Tab.addView(label("EFILIVE V4-STYLE ALDL SCANNER", 17f, Theme.TEXT), lp(MATCH, WRAP, 0f, dp(6)))
+        v4Tab.addView(label("Independent MonitorTune implementation. Import the documented MonitorTuneV4 XML definition, inspect raw frames, decode configured parameters, review macros and export a CSV session. Live serial transmission is intentionally not enabled until the exact ECU definition and adapter timing are verified.", 11f, Theme.WARN), lp(MATCH, WRAP, 0f, dp(8)))
+        v4Tab.addView(btn("Import MonitorTuneV4 XML", Color.parseColor("#2563EB")) { openV4Definition.launch(arrayOf("text/xml", "application/xml", "text/plain")) }, lp(MATCH, WRAP, 0f, dp(6)))
+        v4Info = label("No V4 definition loaded.", 12f, Theme.MUTED)
+        v4Info?.setPadding(dp(9), dp(8), dp(9), dp(8)); v4Info?.background = rounded(Theme.CARD, 9)
+        v4Tab.addView(v4Info, lp(MATCH, WRAP, 0f, dp(8)))
+        val rawFrame = EditText(this).apply {
+            hint = "Paste received frame as hex, e.g. F4 57 ..."
+            setTextColor(Theme.TEXT); setHintTextColor(Theme.MUTED); setSingleLine(false); minLines = 2
+        }
+        v4Tab.addView(rawFrame, lp(MATCH, WRAP, 0f, dp(5)))
+        v4Tab.addView(btn("Decode received frame", Color.parseColor("#0E9F6E")) {
+            try {
+                val def = v4Definition ?: error("Import a MonitorTuneV4 definition first.")
+                val bytes = V4Hex.parse(rawFrame.text.toString())
+                val result = V4Protocol.decode(bytes, def)
+                v4LastDecoded = result
+                v4Recorder.add(result.values)
+                val now = System.currentTimeMillis()
+                result.values.forEach { v4Chart.add(it.parameter.id, V4ChartPoint(now, it.value)) }
+                v4Values?.text = buildString {
+                    result.values.forEach { appendLine("${it.parameter.name}: ${String.format(Locale.US, "%.3f", it.value)} ${it.parameter.units}  [raw ${it.raw}]") }
+                    result.warnings.forEach { appendLine("WARNING: $it") }
+                    if (result.values.isEmpty() && result.warnings.isEmpty()) append("No parameter definitions.")
+                }
+            } catch (e: Exception) { Toast.makeText(this, "Decode failed: ${e.message}", Toast.LENGTH_LONG).show() }
+        }, lp(MATCH, WRAP, 0f, dp(6)))
+        v4Values = label("Decoded values appear here.", 12f, Theme.TEXT)
+        v4Values?.setPadding(dp(9), dp(8), dp(9), dp(8)); v4Values?.background = rounded(Theme.CARD, 9)
+        val v4Scroll = ScrollView(this)
+        v4Scroll.addView(v4Values)
+        v4Tab.addView(v4Scroll, lp(MATCH, 0, 1f, dp(6)))
+        val v4Actions = LinearLayout(this)
+        v4Actions.addView(btn("Export CSV", Theme.BLUE) {
+            val def = v4Definition
+            if (def == null || v4Recorder.snapshot().isEmpty()) Toast.makeText(this, "Import a definition and decode at least one frame first.", Toast.LENGTH_LONG).show()
+            else { pendingBytes = v4Recorder.toCsv(def).toByteArray(); saveCsv.launch("efilive_v4_session.csv") }
+        }, lp(0, WRAP, 1f, dp(3)))
+        v4Actions.addView(btn("Macro list", Theme.CARD_HI) { showV4Macros() }, lp(0, WRAP, 1f, dp(3)))
+        v4Tab.addView(v4Actions, lp(MATCH, WRAP, 0f, dp(5)))
+        val v4Root = ScrollView(this)
+        v4Root.addView(v4Tab)
+        tabs = arrayOf<View>(logTab, dashTab, veTab, spTab, dynoTab, aiRoot, workshopRoot, v4Root)
         val holder = FrameLayout(this)
         for (t in tabs) holder.addView(t, FrameLayout.LayoutParams(MATCH, MATCH))
         root.addView(holder, lp(MATCH, 0, 1f, 0))
@@ -800,6 +864,27 @@ class MainActivity : ComponentActivity() {
         selectTab(1) // Dash is the home screen
         root.alpha = 0f
         root.animate().alpha(1f).setDuration(500).start()
+    }
+
+    private fun refreshV4Definition() {
+        val d = v4Definition ?: return
+        v4Info?.text = "${d.name} | ${d.baud} baud ${d.dataBits}-${d.parity}-${d.stopBits}\nParameters: ${d.parameters.size} | Requests: ${d.requests.size} | Macros: ${d.macros.size}\n${d.warnings.joinToString("\\n")}"
+    }
+
+    private fun showV4Macros() {
+        val d = v4Definition
+        if (d == null) { Toast.makeText(this, "Import a V4 definition first.", Toast.LENGTH_LONG).show(); return }
+        val details = d.macros.map { macro ->
+            "${macro.name}${if (macro.requiresConfirmation) " [CONFIRMATION REQUIRED]" else ""}\n" +
+                macro.steps.joinToString("\\n") { step ->
+                    val req = d.requests.first { it.id == step.requestId }
+                    "  ${req.name}: ${req.txHex} (delay ${step.delayMs} ms)"
+                }
+        }.ifEmpty { listOf("No macros in this definition.") }
+        AlertDialog.Builder(this).setTitle("Configured macros — review only")
+            .setItems(details.toTypedArray(), null)
+            .setMessage("Macro execution/transmission is disabled in this build. Verify every request and any state-changing action on a bench before enabling a live executor.")
+            .setPositiveButton("Close", null).show()
     }
 
     private fun refreshWorkshopProfile() {
