@@ -1,47 +1,49 @@
 # EFILive V4-style scanner subsystem — implementation status
 
-MonitorTune now contains an independent, data-driven ALDL scanner core inspired by the documented EFILive V4 scan workflow. It is not EFILive software, does not use proprietary binaries, and does not claim drop-in compatibility with EFILive V4 vehicle-definition files.
+MonitorTune now contains an independent, definition-driven GM ALDL scanner workflow inspired by the documented EFILive V4 F6/F7/F8 scan-tool model. It is not EFILive software and does not claim direct compatibility with proprietary EFILive V4 vehicle-definition files.
 
 ## Implemented in source
 
-- Explicit raw hexadecimal request representation and formatter.
-- Configurable GM 8-bit sum and complement checksum helpers; checksum policy is per request and defaults to NONE rather than guessing.
-- Data-driven 1–4 byte parameter decoding with endian, signedness, scale and offset.
-- A secure XML importer for the documented MonitorTuneV4 interchange schema (not arbitrary EFILive XML).
-- Macro model with ordered request steps, delays and an explicit confirmation flag for sensitive macros.
-- Raw serial transport interface contract; an Android USB/serial driver adapter and verified per-vehicle timing/framing are still required before live ECU I/O.
-- V4 Lab UI for importing MonitorTuneV4 XML, manually decoding pasted raw response frames, reviewing configured macros and exporting decoded CSV sessions.
-- Decoded session recorder with CSV export and bounded chart-history model.
-- Unit tests for hex parsing, checksum policies, endian/signed scaling, schema validation, CSV and chart retention.
+- Secure XML importer for the documented MonitorTuneV4 schema, with validation of identifiers, request references, parameter ranges, serial settings and timing.
+- Vehicle/module/request models. Requests carry raw TX bytes, module grouping, response offset/length, checksum policy, timeout, inter-byte quiet time, polling interval and a state-change confirmation flag.
+- USB serial transport using the existing usb-serial-for-android library, with baud/data/parity/stop configuration.
+- Bluetooth Classic SPP raw-UART transport for transparent serial bridges. This is separate from the ELM327 AT-command connection and cannot set the bridge's physical UART baud from Android.
+- Optional, definition-supplied connect/disconnect byte sequences for verified interface/chatter control; no default sequence is invented.
+- F6-style macro execution from imported definitions, sequential request/response handling, per-step delays and confirmation gating for macros containing state-changing requests.
+- F7-style request send and live decoded parameter display, including raw TX/RX frame monitor and checksum status.
+- F8-style live dashboard with up to eight definition-scaled parameter dials and a selectable scrolling trend chart.
+- Definition-specific DTC read request and one-byte mask/value DTC mapping. DTC clear is available only when the definition supplies a clear request ID and always requires an explicit confirmation dialog.
+- Live polling of configured read-only requests at intervals of 100 ms or greater.
+- Timestamped decoded session recording and CSV export.
+- Unit tests for hex handling, checksums, parameter decoding, schema validation, DTC mapping, serial timing metadata, CSV export and chart history.
+- GitHub Actions workflow to run Android unit tests and assemble a debug APK.
 
 ## EFILive V4 workflow mapping
 
 | V4 concept | MonitorTune implementation | Status |
 |---|---|---|
-| Vehicle definitions | MonitorTuneV4 XML model/importer | Partial; proprietary V4 XML dialect not reverse-engineered |
-| Modules / requests | Explicit request definitions and raw bytes | Definition model/importer present; no universal vehicle request catalogue |
-| F6 Macros | Ordered macro model and confirmation metadata | Review-only macro list UI; live execution intentionally disabled |
-| F7 ALDL table | Parameter decoder and decoded value model | Manual raw-frame decode UI; live transport integration pending |
-| F8 Dashboard | Decoded values and bounded chart series | Decoded-value panel and chart-history model; live dashboard graph UI pending |
-| Read DTCs | Vehicle-specific request/parameter definitions | Not supplied by generic core |
-| Clear DTCs | No universal command is assumed | Not enabled; requires verified vehicle-specific definition and explicit confirmation |
-| Raw serial monitor | Hex parser/formatter and transport interface | UI/driver integration pending |
-| Logging / charts | CSV recorder and bounded chart history | Manual-frame session CSV export and bounded chart-history model; continuous live capture/graph UI pending |
+| Vehicle definitions | MonitorTuneV4 XML import | Supported for the documented MonitorTune schema; proprietary EFILive XML import is not implemented |
+| Modules / requests | Module-grouped request definitions | Supported when supplied in the vehicle definition |
+| F6 Macros | Sequential request macros with delays | Imported macro execution supported; editing/authoring macros in the app UI is not yet implemented |
+| F7 ALDL table | Live request/response decoding | Supported for configured definitions and compatible raw serial interfaces |
+| F8 Dashboard | Up to eight live dials plus selectable trend chart | Supported for configured parameter definitions |
+| Read DTCs | Configured DTC read request plus byte mask/value rules | Supported only when correct vehicle-specific request and rules are supplied |
+| Clear DTCs | Configured clear request | Confirmation-gated; command must be verified for exact ECU |
+| Raw serial monitor | TX/RX hex monitor | Supported for configured request traffic |
+| Logging / charts | Session CSV and live chart history | Supported for decoded live request traffic |
 
 ## Critical hardware/protocol limitations
 
-- EFILive V4 was a legacy GM OBD-I/ALDL scan tool; it is not an ECU calibration flash/tuning interface.
-- Generic ELM327 adapters are not interchangeable with raw 8192-baud ALDL interfaces. The actual ECU, ALDL electrical interface, serial baud and chatter/response timing must be verified.
-- Do not transmit sample bytes shown in historical discussions as a universal request. Every request must come from a verified vehicle-specific definition.
-- DTC clear and other state-changing macros must remain disabled until their exact command sequence is validated on the bench and confirmation is required in the UI.
-- No ECU write/flash functionality has been added.
+- EFILive V4 was a legacy GM OBD-I/ALDL scan tool, not an ECU calibration flashing tool.
+- Generic ELM327 adapters are not interchangeable with raw 8192-baud ALDL interfaces. Bluetooth SPP mode requires a transparent raw UART bridge. Configure its UART baud externally to match the definition.
+- The USB serial library supports common FTDI, CP210x, CH340 and PL2303 USB-UART devices, but this does not prove electrical compatibility with a particular ALDL interface. Check voltage levels, wiring, grounding and adapter design.
+- Every request, response layout, checksum coverage, scaling, DTC rule, polling interval and optional chatter sequence must be validated against the exact ECM/service definition. No universal request catalogue is bundled.
+- DTC mask/value rules are a simple user-defined one-byte matcher, not a universal GM OBD-I DTC decoder. An unmatched rule or empty response is not proof that no faults exist.
+- DTC clear and other state-changing macros can erase diagnostic evidence or learned data. The app requires confirmation but cannot establish that a supplied command is correct or safe.
+- No calibration write, flash, immobiliser, coding, actuator-control or ECU programming functionality has been added.
 
-## Validation still required
+## Validation status
 
-- Run clean Android Gradle build and all unit tests in Android Studio/CI.
-- Test XML parsing on Android API 24+ with malformed and hostile inputs.
-- Integrate a compatible raw serial adapter and implement framing, response timeouts, chatter control and reconnect behavior.
-- Validate every request, checksum, response offset, scaling and DTC mapping against the exact ECM/service definition.
-- Hardware-test logging, macro sequencing and dashboard update rate.
+The source and tests have been committed and a GitHub Actions build/test workflow has been added. A successful CI result must be checked before calling the Android build verified. No physical USB ALDL cable, Bluetooth raw-UART bridge or vehicle/ECM has been hardware-tested in this session. Do not rely on the readings until the CI build passes and the exact interface/ECU combination has been bench-tested.
 
-Do not advertise this subsystem as a completed EFILive V4 replacement until those gates pass.
+See [V4_DEFINITION_FORMAT.md](V4_DEFINITION_FORMAT.md) and the explicitly non-transmittable [template XML](examples/MonitorTuneV4_template.xml) before preparing a vehicle definition.
