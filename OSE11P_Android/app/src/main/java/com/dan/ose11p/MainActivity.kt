@@ -913,6 +913,7 @@ class MainActivity : ComponentActivity() {
         v4Io.execute {
             try {
                 val transport = V4UsbTransport(this, def.baud, def.dataBits, def.stopBits, def.parity)
+                def.connectHex?.let { transport.write(V4Hex.parse(it)) }
                 v4Transport?.close(); v4Transport = transport
                 runOnUiThread { setV4Status("Connected: USB raw serial • ${def.baud} baud ${def.dataBits}-${def.parity}-${def.stopBits}") }
             } catch (e: Exception) { runOnUiThread { setV4Status("USB connection failed: ${e.message}") } }
@@ -943,6 +944,7 @@ class MainActivity : ComponentActivity() {
         v4Io.execute {
             try {
                 val transport = V4BluetoothTransport(adapter, device)
+                def.connectHex?.let { transport.write(V4Hex.parse(it)) }
                 v4Transport?.close(); v4Transport = transport
                 runOnUiThread { setV4Status("Connected: raw Bluetooth SPP • ${device.name ?: device.address} • ${def.baud} baud expected at bridge") }
             } catch (e: Exception) { runOnUiThread { setV4Status("Bluetooth connection failed: ${e.message}") } }
@@ -952,7 +954,12 @@ class MainActivity : ComponentActivity() {
     private fun disconnectV4() {
         stopV4Polling()
         v4Io.execute {
-            try { v4Transport?.close() } catch (_: Exception) {}
+            try {
+                val t = v4Transport
+                val endHex = v4Definition?.disconnectHex
+                if (t != null && endHex != null) t.write(V4Hex.parse(endHex))
+                t?.close()
+            } catch (_: Exception) {}
             v4Transport = null
             runOnUiThread { setV4Status("Disconnected.") }
         }
@@ -962,7 +969,7 @@ class MainActivity : ComponentActivity() {
         val d = v4Definition ?: run { Toast.makeText(this, "Import a definition first.", Toast.LENGTH_LONG).show(); return }
         if (d.requests.isEmpty()) { Toast.makeText(this, "No requests are defined.", Toast.LENGTH_LONG).show(); return }
         val labels = d.requests.map { req ->
-            "${req.name} • TX ${req.txHex}" +
+            "[${req.module}] ${req.name} • TX ${req.txHex}" +
                 (if (req.pollIntervalMs > 0) " • poll ${req.pollIntervalMs}ms" else "") +
                 (if (req.requiresConfirmation) " • CONFIRM" else "")
         }.toTypedArray()
