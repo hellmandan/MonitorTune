@@ -868,7 +868,7 @@ class MainActivity : ComponentActivity() {
 
     private fun refreshV4Definition() {
         val d = v4Definition ?: return
-        v4Info?.text = "${d.name} | ${d.baud} baud ${d.dataBits}-${d.parity}-${d.stopBits}\nParameters: ${d.parameters.size} | Requests: ${d.requests.size} | Macros: ${d.macros.size}\n${d.warnings.joinToString("\\n")}"
+        v4Info?.text = "${d.name} | ${d.baud} baud ${d.dataBits}-${d.parity}-${d.stopBits}\nParameters: ${d.parameters.size} | Requests: ${d.requests.size} | Macros: ${d.macros.size}\n${d.warnings.joinToString("\n")}"
     }
 
     private fun showV4Macros() {
@@ -876,7 +876,7 @@ class MainActivity : ComponentActivity() {
         if (d == null) { Toast.makeText(this, "Import a V4 definition first.", Toast.LENGTH_LONG).show(); return }
         val details = d.macros.map { macro ->
             "${macro.name}${if (macro.requiresConfirmation) " [CONFIRMATION REQUIRED]" else ""}\n" +
-                macro.steps.joinToString("\\n") { step ->
+                macro.steps.joinToString("\n") { step ->
                     val req = d.requests.first { it.id == step.requestId }
                     "  ${req.name}: ${req.txHex} (delay ${step.delayMs} ms)"
                 }
