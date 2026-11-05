@@ -208,7 +208,8 @@ object V4DefinitionImporter {
         val clearDtc = root.attr("dtcClearRequestId").ifBlank { null }
         require(readDtc == null || requests.any { it.id == readDtc }) { "DTC read request id is not defined." }
         require(clearDtc == null || requests.any { it.id == clearDtc }) { "DTC clear request id is not defined." }
-        val connectHex = root.attr("connectHex").takeIf { it.isNotBlank() }?.also { V4Hex.parse(it) }\n        val disconnectHex = root.attr("disconnectHex").takeIf { it.isNotBlank() }?.also { V4Hex.parse(it) }\n        val baud = root.attr("baud", "8192").toInt()
+        val connectHex = root.attr("connectHex").takeIf { it.isNotBlank() }?.also { V4Hex.parse(it) }
+        val disconnectHex = root.attr("disconnectHex").takeIf { it.isNotBlank() }?.also { V4Hex.parse(it) }\n        val baud = root.attr("baud", "8192").toInt()
         require(baud in 300..1000000) { "Invalid serial baud rate." }
         val ids = (parameters.map { it.id } + requests.map { it.id } + macros.map { it.id })
         require(ids.size == ids.distinct().size) { "Definition contains duplicate ids." }
@@ -216,13 +217,13 @@ object V4DefinitionImporter {
             root.attr("dataBits", "8").toInt(), root.attr("stopBits", "1").toInt(), root.attr("parity", "NONE"),
             parameters, requests, macros,
             listOf("Custom MonitorTuneV4 XML loaded. It is not a verified EFILive V4 definition unless independently translated and checked.",
-                "Confirm baud, serial electrical interface, command bytes, response layout, checksum and scaling against vehicle-specific documentation before connecting."))
+                "Confirm baud, serial electrical interface, command bytes, response layout, checksum and scaling against vehicle-specific documentation before connecting."), readDtc, clearDtc, dtcRules, connectHex, disconnectHex)
     }
 }
 
 interface V4RawTransport : AutoCloseable {
     fun write(bytes: ByteArray)
-    fun read(timeoutMs: Int): ByteArray
+    fun read(timeoutMs: Int, quietTimeMs: Int = 60): ByteArray
 }
 
 data class V4LogRow(val elapsedMs: Long, val values: Map<String, Double>)
