@@ -572,7 +572,6 @@ class MainActivity : ComponentActivity() {
         btnConnect = btn("Connect", Color.parseColor("#0E9F6E")) { toggleConnect() }
         btnConnect.minimumHeight = dp(44)
         btnConnect.minHeight = dp(44)
-        top2.addView(chkSim)
         top2.addView(View(this), lp(0, 1, 1f))
         btnMute = btn("", Color.parseColor("#374151")) { toggleMute() }
         btnMute.minimumHeight = dp(44)
@@ -967,7 +966,6 @@ class MainActivity : ComponentActivity() {
         val holder = FrameLayout(this)
         for (t in tabs) holder.addView(t, FrameLayout.LayoutParams(MATCH, MATCH))
         root.addView(holder, lp(MATCH, 0, 1f, 0))
-        root.addView(navScroll, lp(MATCH, WRAP, 0f, 0))
         frame.addView(banner, bannerLp)
         setContentView(frame)
         selectTab(0) // VE workspace is the only screen
