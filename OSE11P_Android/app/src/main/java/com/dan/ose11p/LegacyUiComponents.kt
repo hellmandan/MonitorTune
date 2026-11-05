@@ -10,16 +10,16 @@ import kotlin.math.min
 
 /** Shared dark workshop palette used by the existing MainActivity screens. */
 object Theme {
-    const val BG = 0xff0b1220.toInt()
-    const val CARD = 0xff172235.toInt()
-    const val CARD_HI = 0xff24344d.toInt()
-    const val TEXT = 0xffe5edf7.toInt()
-    const val MUTED = 0xff94a3b8.toInt()
-    const val ACCENT = 0xff38bdf8.toInt()
-    const val GOOD = 0xff22c55e.toInt()
-    const val WARN = 0xfff59e0b.toInt()
-    const val BAD = 0xffef4444.toInt()
-    const val BLUE = 0xff2563eb.toInt()
+    val BG = 0xff0b1220.toInt()
+    val CARD = 0xff172235.toInt()
+    val CARD_HI = 0xff24344d.toInt()
+    val TEXT = 0xffe5edf7.toInt()
+    val MUTED = 0xff94a3b8.toInt()
+    val ACCENT = 0xff38bdf8.toInt()
+    val GOOD = 0xff22c55e.toInt()
+    val WARN = 0xfff59e0b.toInt()
+    val BAD = 0xffef4444.toInt()
+    val BLUE = 0xff2563eb.toInt()
 }
 
 class StatusDot(context: Context) : View(context) {
