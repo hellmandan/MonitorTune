@@ -222,7 +222,7 @@ data class DelcoMatch(val supported: Boolean, val explanation: String)
 
 object VehicleSupportCatalog {
     val delcoFamilies = listOf(
-        DelcoFamily("OSE_11P_V104", "GM Delco OSE $11P V104", "8192 baud ALDL", "Specialist project support", "Matching V104 definitions required", listOf("Exact ECM OS", "Verified ADX/XDF", "Raw ALDL interface")),
+        DelcoFamily("OSE_11P_V104", "GM Delco OSE \$11P V104", "8192 baud ALDL", "Specialist project support", "Matching V104 definitions required", listOf("Exact ECM OS", "Verified ADX/XDF", "Raw ALDL interface")),
         DelcoFamily("DELCO_OTHER", "Other Delco P4/P6/OBD-I families", "Vehicle-specific ALDL", "Catalogue only", "Not enabled by assumption", listOf("Exact ECM service definition", "Verified protocol and checksum")),
         DelcoFamily("GM_OBD2", "GM OBD-II controllers", "SAE J1979 / OEM enhanced", "Generic OBD-II only in this path", "Enhanced definitions required", listOf("Compatible adapter", "OEM-specific PID definition"))
     )
@@ -251,7 +251,7 @@ object VehicleSupportCatalog {
 
     fun matchDelco(id: String, operatingSystem: String?, fingerprint: String?): DelcoMatch {
         if (id != "OSE_11P_V104") return DelcoMatch(false, "ECM family is not on the verified OSE 11P V104 allowlist.")
-        if (operatingSystem != "OSE $11P V104") return DelcoMatch(false, "Operating system does not exactly match OSE 11P V104.")
+        if (operatingSystem != "OSE \$11P V104") return DelcoMatch(false, "Operating system does not exactly match OSE 11P V104.")
         if (fingerprint == null || !fingerprint.matches(Regex("sha256:[0-9a-fA-F]{64}")))
             return DelcoMatch(false, "A verified SHA-256 definition fingerprint is required.")
         return DelcoMatch(false, "Definition fingerprint is not on the signed allowlist; write support remains locked.")
