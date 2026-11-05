@@ -10,7 +10,7 @@ Android automotive diagnostics and tuning workbench.
 
 MonitorTune is intended to provide a workshop-oriented interface for vehicle diagnostics, live data capture, logging and calibration analysis. GM Delco / OSE $11P is the specialist development focus, with generic OBD-II and a modular path for additional vehicle families.
 
-## Included in the v5.0 source snapshot
+## Included in the v5.1 source snapshot
 
 - Android application project using Gradle Kotlin DSL.
 - USB/serial and ELM327 communication components.
