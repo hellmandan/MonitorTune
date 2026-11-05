@@ -22,6 +22,18 @@ MonitorTune is intended to provide a workshop-oriented interface for vehicle dia
 - Unit tests for workshop engine and TunerPro definition components.
 - Changelogs documenting the v2–v5 development snapshots.
 
+## EFILive V4-style ALDL scanner development
+
+The Android app now includes a separate V4 Lab workflow:
+- USB raw serial and Bluetooth Classic SPP raw-UART connections (not ELM327).
+- Importable MonitorTuneV4 vehicle/module/request definitions.
+- F6-style configured macro execution, F7-style live request decoding, and F8-style live gauges/trend chart.
+- Raw TX/RX monitor, configurable polling/response timing, definition-specific DTC read/clear, and CSV session logging.
+
+This is an independent scanner implementation, not an EFILive product or a drop-in replacement. It does not yet parse proprietary EFILive V4 definition XML. It requires a verified definition for the exact ECM and compatible raw ALDL interface. DTC clear and state-changing macros are confirmation-gated. No ECU flashing or calibration writes are included.
+
+Read [the V4 definition format and setup guide](docs/V4_DEFINITION_FORMAT.md) and [implementation status](docs/IMPLEMENTATION_STATUS.md) before use. The example XML is intentionally non-transmittable and contains a placeholder byte only.
+
 ## Important compatibility and safety notes
 
 This repository is a development snapshot, not a claim of universal vehicle compatibility.
