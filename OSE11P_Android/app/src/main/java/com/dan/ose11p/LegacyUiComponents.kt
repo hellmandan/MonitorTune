@@ -61,9 +61,11 @@ class ArcGauge(
     private val needle = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Theme.TEXT; strokeWidth = 2.5f; strokeCap = Paint.Cap.ROUND }
     private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Theme.TEXT; textAlign = Paint.Align.CENTER; textSize = 13f }
     private var value = minValue
+    private var available = true
     private val rect = RectF()
 
-    fun setValue(v: Float) { value = v; invalidate() }
+    fun setValue(v: Float) { value = v; available = true; invalidate() }
+    fun setUnavailable() { available = false; invalidate() }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
