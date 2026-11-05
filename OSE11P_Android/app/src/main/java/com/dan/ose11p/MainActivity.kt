@@ -200,7 +200,7 @@ class MainActivity : ComponentActivity() {
         if (uri != null) try {
             val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: error("Could not read definition")
             disconnectV4()
-            v4Definition = V4DefinitionImporter.import(bytes)
+            v4Definition = V4MacroStore.merge(this, V4DefinitionImporter.import(bytes))
             v4Recorder = V4SessionRecorder(); v4Chart.clear(); v4LastDecoded = null
             refreshV4Definition()
             Toast.makeText(this, "MonitorTune V4 definition imported", Toast.LENGTH_LONG).show()
@@ -1159,11 +1159,74 @@ class MainActivity : ComponentActivity() {
 
     private fun showV4Macros() {
         val d = v4Definition ?: run { Toast.makeText(this, "Import a V4 definition first.", Toast.LENGTH_LONG).show(); return }
-        if (d.macros.isEmpty()) { Toast.makeText(this, "No macros are defined.", Toast.LENGTH_LONG).show(); return }
         val labels = d.macros.map { "${it.name}${if (it.requiresConfirmation) " [CONFIRMATION REQUIRED]" else ""} • ${it.steps.size} steps" }.toTypedArray()
-        AlertDialog.Builder(this).setTitle("Configured diagnostic macros")
-            .setItems(labels) { _, which -> runV4Macro(d.macros[which]) }
+        AlertDialog.Builder(this).setTitle("Diagnostic macros")
+            .setItems(labels) { _, which -> manageV4Macro(d.macros[which]) }
+            .setPositiveButton("Create macro") { _, _ -> editV4Macro(null) }
             .setNegativeButton("Close", null).show()
+    }
+
+    private fun manageV4Macro(macro: V4Macro) {
+        val actions = if (macro.id.startsWith("user_")) arrayOf("Run", "Edit", "Delete") else arrayOf("Run")
+        AlertDialog.Builder(this).setTitle(macro.name).setItems(actions) { _, which ->
+            when (actions[which]) {
+                "Run" -> runV4Macro(macro)
+                "Edit" -> editV4Macro(macro)
+                "Delete" -> AlertDialog.Builder(this).setTitle("Delete macro?")
+                    .setMessage("Remove the user-created macro ${macro.name}?")
+                    .setPositiveButton("Delete") { _, _ ->
+                        val d = v4Definition ?: return@setPositiveButton
+                        v4Definition = d.copy(macros = d.macros.filterNot { it.id == macro.id })
+                        V4MacroStore.save(this, v4Definition!!)
+                        Toast.makeText(this, "Macro deleted.", Toast.LENGTH_SHORT).show()
+                    }.setNegativeButton("Cancel", null).show()
+            }
+        }.setNegativeButton("Cancel", null).show()
+    }
+
+    private fun editV4Macro(existing: V4Macro?) {
+        val d = v4Definition ?: return
+        if (d.requests.isEmpty()) { Toast.makeText(this, "Add requests to the imported vehicle definition first.", Toast.LENGTH_LONG).show(); return }
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(14), dp(6), dp(14), dp(6)) }
+        val name = EditText(this).apply {
+            hint = "Macro name"; setSingleLine(true); setTextColor(Theme.TEXT); setHintTextColor(Theme.MUTED)
+            setText(existing?.name.orEmpty())
+        }
+        val confirm = CheckBox(this).apply {
+            text = "Require confirmation before running"
+            setTextColor(Theme.TEXT)
+            isChecked = existing?.requiresConfirmation ?: false
+        }
+        box.addView(name)
+        box.addView(confirm)
+        val selected = d.requests.map { request -> request.id to (existing?.steps?.any { it.requestId == request.id } == true) }.toMap().toMutableMap()
+        d.requests.forEach { request ->
+            val check = CheckBox(this).apply {
+                text = "[${request.module}] ${request.name} — ${request.txHex}" + if (request.requiresConfirmation) " • STATE-CHANGING" else ""
+                setTextColor(Theme.TEXT)
+                isChecked = selected[request.id] == true
+                setOnCheckedChangeListener { _, checked -> selected[request.id] = checked }
+            }
+            box.addView(check)
+        }
+        val scroll = ScrollView(this).apply { addView(box) }
+        AlertDialog.Builder(this).setTitle(if (existing == null) "Create diagnostic macro" else "Edit diagnostic macro")
+            .setView(scroll)
+            .setPositiveButton("Save") { _, _ ->
+                val macroName = name.text.toString().trim()
+                val steps = d.requests.filter { selected[it.id] == true }.map { V4MacroStep(it.id, 100) }
+                if (macroName.isBlank() || steps.isEmpty()) {
+                    Toast.makeText(this, "Enter a name and select at least one request.", Toast.LENGTH_LONG).show()
+                    return@setPositiveButton
+                }
+                val id = existing?.id ?: "user_${System.currentTimeMillis()}"
+                val macro = V4Macro(id, macroName, steps, confirm.isChecked)
+                val updated = d.copy(macros = d.macros.filterNot { it.id == id } + macro)
+                v4Definition = updated
+                V4MacroStore.save(this, updated)
+                Toast.makeText(this, "Macro saved.", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Cancel", null).show()
     }
 
     private fun refreshWorkshopProfile() {
