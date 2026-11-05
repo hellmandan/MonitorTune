@@ -31,8 +31,8 @@ object TunerProDefinitionImporter {
         safeFeature("http://xml.org/sax/features/external-parameter-entities", false)
         safeFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false)
         safeFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true)
-        safeAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "")
-        safeAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "")
+        safeAttribute("http://javax.xml.XMLConstants/property/accessExternalDTD", "")
+        safeAttribute("http://javax.xml.XMLConstants/property/accessExternalSchema", "")
     }.newDocumentBuilder().apply {
         setEntityResolver { _, _ -> InputSource(StringReader("")) }
     }.parse(ByteArrayInputStream(bytes))
