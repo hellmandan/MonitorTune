@@ -209,7 +209,8 @@ object V4DefinitionImporter {
         require(readDtc == null || requests.any { it.id == readDtc }) { "DTC read request id is not defined." }
         require(clearDtc == null || requests.any { it.id == clearDtc }) { "DTC clear request id is not defined." }
         val connectHex = root.attr("connectHex").takeIf { it.isNotBlank() }?.also { V4Hex.parse(it) }
-        val disconnectHex = root.attr("disconnectHex").takeIf { it.isNotBlank() }?.also { V4Hex.parse(it) }\n        val baud = root.attr("baud", "8192").toInt()
+        val disconnectHex = root.attr("disconnectHex").takeIf { it.isNotBlank() }?.also { V4Hex.parse(it) }
+        val baud = root.attr("baud", "8192").toInt()
         require(baud in 300..1000000) { "Invalid serial baud rate." }
         val ids = (parameters.map { it.id } + requests.map { it.id } + macros.map { it.id })
         require(ids.size == ids.distinct().size) { "Definition contains duplicate ids." }
