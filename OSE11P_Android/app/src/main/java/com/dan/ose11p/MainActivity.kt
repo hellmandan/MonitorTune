@@ -997,8 +997,18 @@ class MainActivity : ComponentActivity() {
     private fun sendV4Request(request: V4Request) {
         if (v4Transport == null) { setV4Status("Connect a compatible raw ALDL serial interface first."); return }
         v4Io.execute {
-            try { performV4Request(request) }
-            catch (e: Exception) { runOnUiThread { setV4Status("Request failed: ${e.message}") } }
+            try {
+                performV4Request(request)
+                val def = v4Definition
+                if (def != null && request.id == def.dtcClearRequestId) {
+                    val readback = def.dtcReadRequestId?.let { id -> def.requests.firstOrNull { it.id == id } }
+                    if (readback != null) {
+                        Thread.sleep(300)
+                        performV4Request(readback)
+                        runOnUiThread { setV4Status("Clear request sent; DTC readback completed. Review the returned codes and ECU response.") }
+                    } else runOnUiThread { setV4Status("Clear request transmitted; no DTC readback request is configured.") }
+                }
+            } catch (e: Exception) { runOnUiThread { setV4Status("Request failed: ${e.message}") } }
         }
     }
 
@@ -1117,8 +1127,11 @@ class MainActivity : ComponentActivity() {
             if (v4Transport == null) setV4Status("Connect a raw ALDL interface first.")
             else v4Io.execute {
                 try {
-                    V4MacroExecutor(d, v4Transport!!).execute(macro.copy(requiresConfirmation = sensitive)) { _, request, result ->
-                        runOnUiThread { displayV4Result(result, request) }
+                    V4MacroExecutor(d, v4Transport!!).execute(macro.copy(requiresConfirmation = sensitive)) { step, request, result ->
+                        runOnUiThread {
+                            v4RawMonitor?.text = "MACRO ${macro.name} • STEP ${step + 1}\nTX: ${request.txHex}\nRX: ${V4Hex.format(result.bytes)}"
+                            displayV4Result(result, request)
+                        }
                     }
                     runOnUiThread { setV4Status("Macro complete: ${macro.name}") }
                 } catch (e: Exception) { runOnUiThread { setV4Status("Macro failed: ${e.message}") } }
