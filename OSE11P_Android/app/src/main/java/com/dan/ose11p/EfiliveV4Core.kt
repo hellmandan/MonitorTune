@@ -195,7 +195,7 @@ object V4DefinitionImporter {
         }
         val macros = root.children("macro").mapIndexed { i, e ->
             val steps = e.children("step").map { V4MacroStep(it.attr("request"), it.attr("delayMs", "100").toLong()) }
-            require(steps.isNotEmpty() && steps.all { step -> requests.any { it.id == step.requestId } && step.delayMs in 0..60000 }) {
+            require(steps.isNotEmpty() && steps.all { step -> requests.any { it.id == step.requestId } && step.delayMs in 0L..60000L }) {
                 "Macro ${e.attr("name", "Macro ${i + 1}")} has invalid or missing request steps."
             }
             V4Macro(e.attr("id", "m$i"), e.attr("name", "Macro ${i + 1}"), steps, e.attr("requiresConfirmation", "false").toBoolean())
