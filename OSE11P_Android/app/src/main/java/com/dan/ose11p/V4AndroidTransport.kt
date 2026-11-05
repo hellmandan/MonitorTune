@@ -86,7 +86,6 @@ class V4BluetoothTransport(
     private val spp = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
 
     init {
-        adapter.cancelDiscovery()
         socket = device.createRfcommSocketToServiceRecord(spp)
         try {
             socket.connect()
