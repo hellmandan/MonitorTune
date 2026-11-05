@@ -24,11 +24,11 @@ MonitorTune now contains an independent, definition-driven GM ALDL scanner workf
 |---|---|---|
 | Vehicle definitions | MonitorTuneV4 XML import | Supported for the documented MonitorTune schema; proprietary EFILive XML import is not implemented |
 | Modules / requests | Module-grouped request definitions | Supported when supplied in the vehicle definition |
-| F6 Macros | Sequential request macros with delays | Imported macro execution supported; editing/authoring macros in the app UI is not yet implemented |
+| F6 Macros | Sequential request macros with delays | Imported macro execution plus in-app user macro create/edit/delete and local persistence |
 | F7 ALDL table | Live request/response decoding | Supported for configured definitions and compatible raw serial interfaces |
 | F8 Dashboard | Up to eight live dials plus selectable trend chart | Supported for configured parameter definitions |
 | Read DTCs | Configured DTC read request plus byte mask/value rules | Supported only when correct vehicle-specific request and rules are supplied |
-| Clear DTCs | Configured clear request | Confirmation-gated; command must be verified for exact ECU |
+| Clear DTCs | Configured clear request | Confirmation-gated, request must be marked requiresConfirmation=true, and configured DTC readback is run when available |
 | Raw serial monitor | TX/RX hex monitor | Supported for configured request traffic |
 | Logging / charts | Session CSV and live chart history | Supported for decoded live request traffic |
 
