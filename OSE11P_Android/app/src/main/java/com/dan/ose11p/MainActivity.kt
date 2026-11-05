@@ -890,25 +890,241 @@ class MainActivity : ComponentActivity() {
         root.animate().alpha(1f).setDuration(500).start()
     }
 
+    private fun setV4Status(message: String) { v4Status?.text = message }
+
+    private fun connectV4Usb() {
+        val def = v4Definition ?: run { Toast.makeText(this, "Import a vehicle definition first.", Toast.LENGTH_LONG).show(); return }
+        val manager = getSystemService(Context.USB_SERVICE) as UsbManager
+        val driver = UsbSerialProber.getDefaultProber().findAllDrivers(manager).firstOrNull()
+            ?: run { setV4Status("No USB serial adapter found. Check USB OTG and the ALDL interface."); return }
+        if (manager.hasPermission(driver.device)) startV4UsbTransport()
+        else {
+            v4PendingConnect = true
+            val intent = Intent(ACTION_USB_PERMISSION).setPackage(packageName)
+            val flags = if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0
+            manager.requestPermission(driver.device, PendingIntent.getBroadcast(this, 711, intent, flags))
+            setV4Status("Waiting for USB serial permission…")
+        }
+    }
+
+    private fun startV4UsbTransport() {
+        val def = v4Definition ?: return
+        setV4Status("Opening USB raw serial at ${def.baud} baud…")
+        v4Io.execute {
+            try {
+                val transport = V4UsbTransport(this, def.baud, def.dataBits, def.stopBits, def.parity)
+                v4Transport?.close(); v4Transport = transport
+                runOnUiThread { setV4Status("Connected: USB raw serial • ${def.baud} baud ${def.dataBits}-${def.parity}-${def.stopBits}") }
+            } catch (e: Exception) { runOnUiThread { setV4Status("USB connection failed: ${e.message}") } }
+        }
+    }
+
+    private fun connectV4Bluetooth() {
+        val def = v4Definition ?: run { Toast.makeText(this, "Import a vehicle definition first.", Toast.LENGTH_LONG).show(); return }
+        val adapter = BluetoothAdapter.getDefaultAdapter()
+            ?: run { setV4Status("Bluetooth is not available on this phone."); return }
+        if (Build.VERSION.SDK_INT >= 31 && checkSelfPermission(android.Manifest.permission.BLUETOOTH_CONNECT) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(android.Manifest.permission.BLUETOOTH_CONNECT), 713)
+            setV4Status("Allow Nearby devices, then reconnect.")
+            return
+        }
+        if (!adapter.isEnabled) { setV4Status("Turn Bluetooth on in Android settings."); return }
+        val devices = try { adapter.bondedDevices.toList().sortedBy { it.name ?: it.address } } catch (_: SecurityException) { emptyList() }
+        if (devices.isEmpty()) { setV4Status("Pair a raw ALDL Bluetooth serial bridge in Android settings first."); return }
+        val labels = devices.map { "${it.name ?: "Bluetooth device"} (${it.address})" }.toTypedArray()
+        AlertDialog.Builder(this).setTitle("Select raw ALDL Bluetooth SPP device")
+            .setMessage("Select a Bluetooth Classic serial bridge that exposes raw UART bytes. ELM327 AT-command adapters are not compatible with this raw transport.")
+            .setItems(labels) { _, which -> startV4BluetoothTransport(adapter, devices[which], def) }
+            .setNegativeButton("Cancel", null).show()
+    }
+
+    private fun startV4BluetoothTransport(adapter: BluetoothAdapter, device: BluetoothDevice, def: V4VehicleDefinition) {
+        setV4Status("Connecting Bluetooth SPP…")
+        v4Io.execute {
+            try {
+                val transport = V4BluetoothTransport(adapter, device)
+                v4Transport?.close(); v4Transport = transport
+                runOnUiThread { setV4Status("Connected: raw Bluetooth SPP • ${device.name ?: device.address} • ${def.baud} baud expected at bridge") }
+            } catch (e: Exception) { runOnUiThread { setV4Status("Bluetooth connection failed: ${e.message}") } }
+        }
+    }
+
+    private fun disconnectV4() {
+        stopV4Polling()
+        v4Io.execute {
+            try { v4Transport?.close() } catch (_: Exception) {}
+            v4Transport = null
+            runOnUiThread { setV4Status("Disconnected.") }
+        }
+    }
+
+    private fun showV4Requests() {
+        val d = v4Definition ?: run { Toast.makeText(this, "Import a definition first.", Toast.LENGTH_LONG).show(); return }
+        if (d.requests.isEmpty()) { Toast.makeText(this, "No requests are defined.", Toast.LENGTH_LONG).show(); return }
+        val labels = d.requests.map { req ->
+            "${req.name} • TX ${req.txHex}" +
+                (if (req.pollIntervalMs > 0) " • poll ${req.pollIntervalMs}ms" else "") +
+                (if (req.requiresConfirmation) " • CONFIRM" else "")
+        }.toTypedArray()
+        AlertDialog.Builder(this).setTitle("Configured ECU requests")
+            .setItems(labels) { _, which -> sendV4RequestWithConfirmation(d.requests[which]) }
+            .setNegativeButton("Close", null).show()
+    }
+
+    private fun sendV4RequestWithConfirmation(request: V4Request) {
+        if (request.requiresConfirmation) {
+            AlertDialog.Builder(this).setTitle("Confirm ECU command")
+                .setMessage("This request is marked as state-changing. Only continue if verified for this exact ECU.\n\n${request.name}\nTX: ${request.txHex}")
+                .setPositiveButton("Transmit") { _, _ -> sendV4Request(request) }
+                .setNegativeButton("Cancel", null).show()
+        } else sendV4Request(request)
+    }
+
+    private fun sendV4Request(request: V4Request) {
+        if (v4Transport == null) { setV4Status("Connect a compatible raw ALDL serial interface first."); return }
+        v4Io.execute {
+            try { performV4Request(request) }
+            catch (e: Exception) { runOnUiThread { setV4Status("Request failed: ${e.message}") } }
+        }
+    }
+
+    private fun performV4Request(request: V4Request): V4FrameResult {
+        val transport = v4Transport ?: throw IllegalStateException("Serial interface disconnected.")
+        val tx = V4Hex.parse(request.txHex)
+        transport.write(tx)
+        val rx = transport.read(1500)
+        if (rx.isEmpty()) throw java.io.IOException("No response to ${request.name} (timeout).")
+        val def = v4Definition ?: throw IllegalStateException("No vehicle definition loaded.")
+        val result = V4Protocol.decode(rx, def, request)
+        runOnUiThread {
+            v4RawMonitor?.text = "RAW SERIAL MONITOR\nTX: ${V4Hex.format(tx)}\nRX: ${V4Hex.format(rx)}"
+            displayV4Result(result, request)
+        }
+        return result
+    }
+
+    private fun displayV4Result(result: V4FrameResult, request: V4Request?) {
+        val def = v4Definition ?: return
+        v4LastDecoded = result
+        if (result.values.isNotEmpty()) {
+            v4Recorder.add(result.values)
+            val elapsed = System.currentTimeMillis()
+            result.values.forEach { v4Chart.add(it.parameter.id, V4ChartPoint(elapsed, it.value)) }
+            if (v4TrendParameterId == null) v4TrendParameterId = result.values.first().parameter.id
+            val selected = v4TrendParameterId
+            if (selected != null) v4ChartView?.setSeries(def.parameters.firstOrNull { it.id == selected }?.name ?: selected, v4Chart.get(selected))
+        }
+        val dtcs = if (request != null && request.id == def.dtcReadRequestId) V4DtcDecoder.decode(result.bytes, def, request) else emptyList()
+        v4Values?.text = buildString {
+            if (request != null) appendLine("Request: ${request.name}")
+            appendLine("RX: ${V4Hex.format(result.bytes)}")
+            result.values.forEach { appendLine("${it.parameter.name}: ${String.format(Locale.US, "%.3f", it.value)} ${it.parameter.units} [raw ${it.raw}]") }
+            if (dtcs.isNotEmpty()) { appendLine("DTCs:"); dtcs.forEach { appendLine("${it.first} — ${it.second}") } }
+            if (request != null && request.id == def.dtcReadRequestId && dtcs.isEmpty()) appendLine("No configured DTC rule matched. Raw response shown; DTC decoding is vehicle-specific.")
+            result.warnings.forEach { appendLine("WARNING: $it") }
+            if (result.values.isEmpty() && result.warnings.isEmpty()) appendLine("Frame received; no parameter mapping matched.")
+        }
+        setV4Status("Received ${result.bytes.size} bytes" + (if (result.checksumValid == false) " • CHECKSUM MISMATCH" else if (result.checksumValid == true) " • checksum OK" else ""))
+    }
+
+    private fun startV4Polling() {
+        val d = v4Definition ?: run { Toast.makeText(this, "Import a definition first.", Toast.LENGTH_LONG).show(); return }
+        if (v4Transport == null) { setV4Status("Connect a raw ALDL interface before polling."); return }
+        val pollable = d.requests.filter { it.pollIntervalMs >= 100 && !it.requiresConfirmation }
+        if (pollable.isEmpty()) { Toast.makeText(this, "No read-only request has pollIntervalMs >= 100 configured.", Toast.LENGTH_LONG).show(); return }
+        val labels = pollable.map { "${it.name} — every ${it.pollIntervalMs} ms" }.toTypedArray()
+        AlertDialog.Builder(this).setTitle("Select live data request").setItems(labels) { _, which ->
+            stopV4Polling()
+            v4Polling = true
+            scheduleV4Poll(pollable[which])
+            setV4Status("Live polling: ${pollable[which].name}")
+        }.setNegativeButton("Cancel", null).show()
+    }
+
+    private fun scheduleV4Poll(request: V4Request) {
+        val task = Runnable {
+            if (!v4Polling) return@Runnable
+            v4Io.execute {
+                try { performV4Request(request) }
+                catch (e: Exception) { runOnUiThread { setV4Status("Poll error: ${e.message}") } }
+                finally {
+                    if (v4Polling) handler.postDelayed({ if (v4Polling) scheduleV4Poll(request) }, request.pollIntervalMs)
+                }
+            }
+        }
+        v4PollRunnable = task
+        handler.post(task)
+    }
+
+    private fun stopV4Polling() {
+        v4Polling = false
+        v4PollRunnable?.let { handler.removeCallbacks(it) }
+        v4PollRunnable = null
+        if (v4Transport != null) setV4Status("Connected — live polling stopped.")
+    }
+
+    private fun readV4Dtcs() {
+        val d = v4Definition ?: run { Toast.makeText(this, "Import a definition first.", Toast.LENGTH_LONG).show(); return }
+        val id = d.dtcReadRequestId ?: run { Toast.makeText(this, "No vehicle-specific DTC read request configured.", Toast.LENGTH_LONG).show(); return }
+        val req = d.requests.firstOrNull { it.id == id } ?: return
+        sendV4RequestWithConfirmation(req)
+    }
+
+    private fun clearV4Dtcs() {
+        val d = v4Definition ?: run { Toast.makeText(this, "Import a definition first.", Toast.LENGTH_LONG).show(); return }
+        val id = d.dtcClearRequestId ?: run { Toast.makeText(this, "No vehicle-specific DTC clear request configured. Nothing transmitted.", Toast.LENGTH_LONG).show(); return }
+        val req = d.requests.firstOrNull { it.id == id } ?: return
+        AlertDialog.Builder(this).setTitle("Clear ECU trouble codes?")
+            .setMessage("This sends a vehicle-specific command that may erase diagnostic information and learned data. Verify this request for the connected ECU.\n\n${req.name}\nTX: ${req.txHex}")
+            .setPositiveButton("I understand — transmit") { _, _ -> sendV4Request(req) }
+            .setNegativeButton("Cancel", null).show()
+    }
+
+    private fun chooseV4TrendParameter() {
+        val d = v4Definition ?: run { Toast.makeText(this, "Import a definition first.", Toast.LENGTH_LONG).show(); return }
+        if (d.parameters.isEmpty()) return
+        AlertDialog.Builder(this).setTitle("Chart parameter")
+            .setItems(d.parameters.map { "${it.name} (${it.units})" }.toTypedArray()) { _, which ->
+                v4TrendParameterId = d.parameters[which].id
+                v4ChartView?.setSeries(d.parameters[which].name, v4Chart.get(d.parameters[which].id))
+            }.setNegativeButton("Close", null).show()
+    }
+
+    private fun runV4Macro(macro: V4Macro) {
+        val d = v4Definition ?: return
+        val sensitive = macro.requiresConfirmation || macro.steps.any { step ->
+            val req = d.requests.firstOrNull { it.id == step.requestId }
+            req?.requiresConfirmation == true || step.requestId == d.dtcClearRequestId
+        }
+        val run = {
+            if (v4Transport == null) setV4Status("Connect a raw ALDL interface first.")
+            else v4Io.execute {
+                try {
+                    V4MacroExecutor(d, v4Transport!!).execute(macro) { _, request, result ->
+                        runOnUiThread { displayV4Result(result, request) }
+                    }
+                    runOnUiThread { setV4Status("Macro complete: ${macro.name}") }
+                } catch (e: Exception) { runOnUiThread { setV4Status("Macro failed: ${e.message}") } }
+            }
+        }
+        if (sensitive) AlertDialog.Builder(this).setTitle("Confirm macro transmission")
+            .setMessage("This macro includes a request marked state-changing or a DTC-clear request. Verify all steps before transmitting.\n\n${macro.name}")
+            .setPositiveButton("Run macro") { _, _ -> run() }.setNegativeButton("Cancel", null).show()
+        else run()
+    }
+
     private fun refreshV4Definition() {
         val d = v4Definition ?: return
         v4Info?.text = "${d.name} | ${d.baud} baud ${d.dataBits}-${d.parity}-${d.stopBits}\nParameters: ${d.parameters.size} | Requests: ${d.requests.size} | Macros: ${d.macros.size}\n${d.warnings.joinToString("\n")}"
     }
 
     private fun showV4Macros() {
-        val d = v4Definition
-        if (d == null) { Toast.makeText(this, "Import a V4 definition first.", Toast.LENGTH_LONG).show(); return }
-        val details = d.macros.map { macro ->
-            "${macro.name}${if (macro.requiresConfirmation) " [CONFIRMATION REQUIRED]" else ""}\n" +
-                macro.steps.joinToString("\n") { step ->
-                    val req = d.requests.first { it.id == step.requestId }
-                    "  ${req.name}: ${req.txHex} (delay ${step.delayMs} ms)"
-                }
-        }.ifEmpty { listOf("No macros in this definition.") }
-        AlertDialog.Builder(this).setTitle("Configured macros — review only")
-            .setItems(details.toTypedArray(), null)
-            .setMessage("Macro execution/transmission is disabled in this build. Verify every request and any state-changing action on a bench before enabling a live executor.")
-            .setPositiveButton("Close", null).show()
+        val d = v4Definition ?: run { Toast.makeText(this, "Import a V4 definition first.", Toast.LENGTH_LONG).show(); return }
+        if (d.macros.isEmpty()) { Toast.makeText(this, "No macros are defined.", Toast.LENGTH_LONG).show(); return }
+        val labels = d.macros.map { "${it.name}${if (it.requiresConfirmation) " [CONFIRMATION REQUIRED]" else ""} • ${it.steps.size} steps" }.toTypedArray()
+        AlertDialog.Builder(this).setTitle("Configured diagnostic macros")
+            .setItems(labels) { _, which -> runV4Macro(d.macros[which]) }
+            .setNegativeButton("Close", null).show()
     }
 
     private fun refreshWorkshopProfile() {
