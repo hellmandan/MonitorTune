@@ -744,11 +744,12 @@ class MainActivity : ComponentActivity() {
         }, lp(0, WRAP, 1f, dp(3)))
         aiTab.addView(dtcControls, lp(MATCH, WRAP, 0f, dp(5)))
         aiTab.addView(label("DTC tools use standard OBD-II engine/emissions services only. They do not scan or clear ABS, SRS, transmission or other manufacturer-specific modules.", 10f, Theme.WARN), lp(MATCH, WRAP, 0f, dp(4)))
-        aiSummary = label("Waiting for ECU data", 20f, Theme.TEXT)
-        aiSummary.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        aiSummary.setPadding(dp(12), dp(12), dp(12), dp(12))
-        aiSummary.background = rounded(Theme.CARD, 12)
-        aiTab.addView(aiSummary, lp(MATCH, WRAP, 0f, dp(5)))
+        val summaryView = label("Waiting for ECU data", 20f, Theme.TEXT)
+        aiSummary = summaryView
+        summaryView.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        summaryView.setPadding(dp(12), dp(12), dp(12), dp(12))
+        summaryView.background = rounded(Theme.CARD, 12)
+        aiTab.addView(summaryView, lp(MATCH, WRAP, 0f, dp(5)))
         aiTab.addView(label("LIVE ALERTS", 12f, Theme.MUTED), lp(MATCH, WRAP, 0f, dp(5)))
         aiAlertsBox = LinearLayout(this)
         aiAlertsBox?.orientation = LinearLayout.VERTICAL
@@ -1362,7 +1363,7 @@ class MainActivity : ComponentActivity() {
             .setNegativeButton("Cancel", null).show()
     }
 
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == 712 && grantResults.isNotEmpty() && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
             Toast.makeText(this, "Bluetooth permission granted. Tap Connect and choose Bluetooth ELM327.", Toast.LENGTH_LONG).show()
