@@ -204,8 +204,8 @@ class AlertOverlay(context: Context) : View(context) {
 data class EcuDefinition(val id: String, val label: String, val transport: String, val diagnosticLevel: String, val notes: String)
 object EcuRegistry {
     val definitions = listOf(
-        EcuDefinition("GM_DELPHI_11P_V104", "GM Delco OSE $11P V104", "8192 baud ALDL / USB serial", "Project-specific specialist support", "Use matching OSE $11P V104 ADX/XDF and verify ECM hardware/OS."),
-        EcuDefinition("GM_DELPHI_OTHER", "Other GM Delco ECM families", "Vehicle-specific ALDL / serial", "Definition required", "Not interchangeable with OSE $11P V104 without verified OS and protocol data."),
+        EcuDefinition("GM_DELPHI_11P_V104", "GM Delco OSE \$11P V104", "8192 baud ALDL / USB serial", "Project-specific specialist support", "Use matching OSE \$11P V104 ADX/XDF and verify ECM hardware/OS."),
+        EcuDefinition("GM_DELPHI_OTHER", "Other GM Delco ECM families", "Vehicle-specific ALDL / serial", "Definition required", "Not interchangeable with OSE \$11P V104 without verified OS and protocol data."),
         EcuDefinition("GENERIC_OBD2", "Generic SAE OBD-II", "ELM327 / supported OBD interface", "Standard powertrain PIDs", "Enhanced OEM module access is not implied.")
     )
 }
@@ -214,7 +214,7 @@ data class DelcoFamily(val id: String, val name: String, val transport: String, 
 data class ManufacturerSupport(val displayName: String, val commonProtocols: List<String>, val genericObd2Note: String, val enhancedStatus: String)
 object VehicleSupportCatalog {
     val delcoFamilies = listOf(
-        DelcoFamily("OSE_11P_V104", "GM Delco OSE $11P V104", "8192 baud ALDL", "Specialist project support", "Matching V104 definitions required", listOf("Exact ECM OS", "Verified ADX/XDF", "Raw ALDL interface")),
+        DelcoFamily("OSE_11P_V104", "GM Delco OSE \$11P V104", "8192 baud ALDL", "Specialist project support", "Matching V104 definitions required", listOf("Exact ECM OS", "Verified ADX/XDF", "Raw ALDL interface")),
         DelcoFamily("DELCO_OTHER", "Other Delco P4/P6/OBD-I families", "Vehicle-specific ALDL", "Catalogue only", "Not enabled by assumption", listOf("Exact ECM service definition", "Verified protocol and checksum")),
         DelcoFamily("GM_OBD2", "GM OBD-II controllers", "SAE J1979 / OEM enhanced", "Generic OBD-II only in this path", "Enhanced definitions required", listOf("Compatible adapter", "OEM-specific PID definition"))
     )
