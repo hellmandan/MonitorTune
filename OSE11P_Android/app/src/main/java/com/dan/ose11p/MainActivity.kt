@@ -1057,7 +1057,7 @@ class MainActivity : ComponentActivity() {
     private fun startV4Polling() {
         val d = v4Definition ?: run { Toast.makeText(this, "Import a definition first.", Toast.LENGTH_LONG).show(); return }
         if (v4Transport == null) { setV4Status("Connect a raw ALDL interface before polling."); return }
-        val pollable = d.requests.filter { it.pollIntervalMs >= 100 && !it.requiresConfirmation }
+        val pollable = d.requests.filter { it.pollIntervalMs >= 100 && !it.requiresConfirmation && it.id != d.dtcClearRequestId }
         if (pollable.isEmpty()) { Toast.makeText(this, "No read-only request has pollIntervalMs >= 100 configured.", Toast.LENGTH_LONG).show(); return }
         val labels = pollable.map { "${it.name} — every ${it.pollIntervalMs} ms" }.toTypedArray()
         AlertDialog.Builder(this).setTitle("Select live data request").setItems(labels) { _, which ->
