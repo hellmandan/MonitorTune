@@ -21,7 +21,7 @@ class EfLiveV4CoreTest {
             V4Parameter("rpm", "RPM", 0, 2, V4Endian.BIG, false, 0.25),
             V4Parameter("temp", "Temp", 2, 1, V4Endian.LITTLE, true, 1.0, -40.0)
         ))
-        val decoded = V4Protocol.decode(byteArrayOf(0x13, 0x88, 0x80.toByte()), def)
+        val decoded = V4Protocol.decode(byteArrayOf(0x13, 0x88.toByte(), 0x80.toByte()), def)
         assertEquals(1250.0, decoded.values[0].value, 0.0)
         assertEquals(-168.0, decoded.values[1].value, 0.0)
     }
