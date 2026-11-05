@@ -227,18 +227,18 @@ object VehicleSupportCatalog {
         DelcoFamily("GM_OBD2", "GM OBD-II controllers", "SAE J1979 / OEM enhanced", "Generic OBD-II only in this path", "Enhanced definitions required", listOf("Compatible adapter", "OEM-specific PID definition"))
     )
     val manufacturers = listOf(
-        ManufacturerSupport("GM", "General Motors", listOf("SAE J1850 VPW", "ISO 9141-2", "ISO 14230", "CAN"), "Generic emissions PIDs are available where supported.", "Enhanced OEM module access requires manufacturer-specific definitions."),
-        ManufacturerSupport("FORD", "Ford", listOf("ISO 9141", "PWM", "CAN"), "Generic emissions PIDs are available where supported.", "Enhanced OEM module access requires manufacturer-specific definitions."),
-        ManufacturerSupport("TOYOTA", "Toyota", listOf("ISO 9141", "KWP2000", "CAN"), "Generic emissions PIDs are available where supported.", "Enhanced OEM module access requires manufacturer-specific definitions."),
-        ManufacturerSupport("HONDA", "Honda", listOf("ISO 9141", "KWP2000", "CAN"), "Generic emissions PIDs are available where supported.", "Enhanced OEM module access requires manufacturer-specific definitions."),
-        ManufacturerSupport("MAZDA", "Mazda", listOf("ISO 9141", "CAN"), "Generic emissions PIDs are available where supported.", "Enhanced OEM module access requires manufacturer-specific definitions."),
-        ManufacturerSupport("NISSAN", "Nissan", listOf("ISO 9141", "KWP2000", "CAN"), "Generic emissions PIDs are available where supported.", "Enhanced OEM module access requires manufacturer-specific definitions."),
-        ManufacturerSupport("HYUNDAI", "Hyundai", listOf("ISO 9141", "CAN"), "Generic emissions PIDs are available where supported.", "Enhanced OEM module access requires manufacturer-specific definitions."),
-        ManufacturerSupport("KIA", "Kia", listOf("ISO 9141", "CAN"), "Generic emissions PIDs are available where supported.", "Enhanced OEM module access requires manufacturer-specific definitions."),
-        ManufacturerSupport("VW", "Volkswagen", listOf("ISO 9141", "KWP2000", "CAN"), "Generic emissions PIDs are available where supported.", "Enhanced OEM module access requires manufacturer-specific definitions."),
-        ManufacturerSupport("BMW", "BMW", listOf("ISO 9141", "CAN"), "Generic emissions PIDs are available where supported.", "Enhanced OEM module access requires manufacturer-specific definitions."),
-        ManufacturerSupport("MERCEDES", "Mercedes-Benz", listOf("ISO 9141", "CAN"), "Generic emissions PIDs are available where supported.", "Enhanced OEM module access requires manufacturer-specific definitions."),
-        ManufacturerSupport("SUBARU", "Subaru", listOf("ISO 9141", "CAN"), "Generic emissions PIDs are available where supported.", "Enhanced OEM module access requires manufacturer-specific definitions.")
+        ManufacturerSupport("GM", "General Motors", listOf("SAE J1850 VPW", "ISO 9141-2", "ISO 14230", "CAN"), "Generic emissions PIDs are available where supported.", "Enhanced OEM module definitions are required for full diagnostics."),
+        ManufacturerSupport("FORD", "Ford", listOf("ISO 9141", "PWM", "CAN"), "Generic emissions PIDs are available where supported.", "Enhanced OEM module definitions are required for full diagnostics."),
+        ManufacturerSupport("TOYOTA", "Toyota", listOf("ISO 9141", "KWP2000", "CAN"), "Generic emissions PIDs are available where supported.", "Enhanced OEM module definitions are required for full diagnostics."),
+        ManufacturerSupport("HONDA", "Honda", listOf("ISO 9141", "KWP2000", "CAN"), "Generic emissions PIDs are available where supported.", "Enhanced OEM module definitions are required for full diagnostics."),
+        ManufacturerSupport("MAZDA", "Mazda", listOf("ISO 9141", "CAN"), "Generic emissions PIDs are available where supported.", "Enhanced OEM module definitions are required for full diagnostics."),
+        ManufacturerSupport("NISSAN", "Nissan", listOf("ISO 9141", "KWP2000", "CAN"), "Generic emissions PIDs are available where supported.", "Enhanced OEM module definitions are required for full diagnostics."),
+        ManufacturerSupport("HYUNDAI", "Hyundai", listOf("ISO 9141", "CAN"), "Generic emissions PIDs are available where supported.", "Enhanced OEM module definitions are required for full diagnostics."),
+        ManufacturerSupport("KIA", "Kia", listOf("ISO 9141", "CAN"), "Generic emissions PIDs are available where supported.", "Enhanced OEM module definitions are required for full diagnostics."),
+        ManufacturerSupport("VW", "Volkswagen", listOf("ISO 9141", "KWP2000", "CAN"), "Generic emissions PIDs are available where supported.", "Enhanced OEM module definitions are required for full diagnostics."),
+        ManufacturerSupport("BMW", "BMW", listOf("ISO 9141", "CAN"), "Generic emissions PIDs are available where supported.", "Enhanced OEM module definitions are required for full diagnostics."),
+        ManufacturerSupport("MERCEDES", "Mercedes-Benz", listOf("ISO 9141", "CAN"), "Generic emissions PIDs are available where supported.", "Enhanced OEM module definitions are required for full diagnostics."),
+        ManufacturerSupport("SUBARU", "Subaru", listOf("ISO 9141", "CAN"), "Generic emissions PIDs are available where supported.", "Enhanced OEM module definitions are required for full diagnostics.")
     )
     val protocolNotes = listOf(
         "ELM327 is a command interpreter and is not a transparent raw UART ALDL bridge.",
