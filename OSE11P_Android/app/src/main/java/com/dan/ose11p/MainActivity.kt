@@ -85,6 +85,10 @@ class MainActivity : ComponentActivity() {
     private lateinit var gBoost: ArcGauge
     private lateinit var gCool: ArcGauge
     private lateinit var gSpark: ArcGauge
+    private lateinit var dashAfr: TextView
+    private lateinit var dashMap: TextView
+    private lateinit var dashTps: TextView
+    private lateinit var dashKnock: TextView
     private lateinit var veGrids: Array<HeatGrid>
     private lateinit var spGrids: Array<HeatGrid>
     private val tileVals = LinkedHashMap<String, TextView>()
@@ -383,17 +387,63 @@ class MainActivity : ComponentActivity() {
         return h
     }
 
+    private fun dashMetric(caption: String): Pair<LinearLayout, TextView> {
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(dp(12), dp(8), dp(8), dp(8))
+            background = rounded(Color.rgb(17, 27, 42), 12)
+        }
+        card.addView(label(caption, 10f, Theme.MUTED))
+        val value = label("--", 20f, Theme.TEXT).apply {
+            typeface = Typeface.create("sans-serif-condensed", Typeface.BOLD)
+            setSingleLine(true)
+        }
+        card.addView(value)
+        return Pair(card, value)
+    }
+
     private fun layoutDash() {
         val gs = arrayOf<View>(gRpm, gSpeed, gBoost, gCool, gSpark)
         for (g in gs) (g.parent as? ViewGroup)?.removeView(g)
         dashTab.removeAllViews()
-        fun row(weight: Float, vararg v: View) {
-            val r = LinearLayout(this)
-            for (x in v) r.addView(x, lp(0, MATCH, 1f, dp(2)))
-            dashTab.addView(r, lp(MATCH, 0, weight, 0))
+        val heading = LinearLayout(this).apply {
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(dp(4), dp(2), dp(4), dp(4))
         }
-        if (wide()) row(1f, gRpm, gSpeed, gBoost, gCool, gSpark)
-        else { row(1.1f, gRpm); row(1f, gSpeed, gBoost); row(1f, gCool, gSpark) }
+        heading.addView(label("LIVE ENGINE", 14f, Theme.TEXT).apply {
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        }, lp(0, WRAP, 1f))
+        heading.addView(label("REAL-TIME TELEMETRY  •  OSE / OBD", 9f, Theme.MUTED))
+        dashTab.addView(heading, lp(MATCH, WRAP, 0f, dp(3)))
+
+        fun gaugeRow(vararg views: View) {
+            val r = LinearLayout(this).apply { gravity = android.view.Gravity.CENTER }
+            views.forEach { r.addView(it, lp(0, MATCH, 1f, dp(3))) }
+            dashTab.addView(r, lp(MATCH, 0, 1f, dp(3)))
+        }
+        if (wide()) {
+            gaugeRow(gRpm, gBoost, gSpeed, gCool, gSpark)
+        } else {
+            gaugeRow(gRpm)
+            gaugeRow(gBoost, gSpeed)
+            gaugeRow(gCool, gSpark)
+        }
+
+        val metrics = LinearLayout(this).apply { gravity = android.view.Gravity.CENTER }
+        val afr = dashMetric("WIDEBAND AFR")
+        val map = dashMetric("MANIFOLD PRESSURE")
+        val tps = dashMetric("THROTTLE")
+        val knock = dashMetric("KNOCK RETARD")
+        dashAfr = afr.second
+        dashMap = map.second
+        dashTps = tps.second
+        dashKnock = knock.second
+        for (card in listOf(afr.first, map.first, tps.first, knock.first)) {
+            metrics.addView(card, lp(0, WRAP, 1f, dp(3)))
+        }
+        dashTab.addView(metrics, lp(MATCH, WRAP, 0f, dp(3)))
+        dashTab.addView(label("Values are live ECU readings. N/A means the connected protocol does not supply that parameter.", 9f, Theme.MUTED), lp(MATCH, WRAP, 0f, dp(2)))
     }
 
     private fun layoutTiles() {
@@ -1639,6 +1689,12 @@ class MainActivity : ComponentActivity() {
                     gBoost.setValue(s.boostPsi.toFloat())
                     gCool.setValue(s.coolant.toFloat())
                     gSpark.setValue(s.spark.toFloat())
+                    dashAfr.text = if (connectionMode == "OBD-II") "N/A" else String.format(Locale.US, "%.1f", s.wbAfr)
+                    dashMap.text = String.format(Locale.US, "%.1f kPa", s.map)
+                    dashTps.text = String.format(Locale.US, "%.1f%%", s.tps)
+                    dashKnock.text = if (connectionMode == "OBD-II") "N/A" else String.format(Locale.US, "%.1f°", s.knockRetard)
+                    dashAfr.setTextColor(if (connectionMode == "OBD-II") Theme.MUTED else if (abs(s.wbAfr - s.cmdAfr) < 0.3) Theme.GOOD else if (abs(s.wbAfr - s.cmdAfr) < 0.8) Theme.WARN else Theme.BAD)
+                    dashKnock.setTextColor(if (s.knockRetard >= aiMonitor.settings.criticalKnockDeg) Theme.BAD else if (s.knockRetard >= aiMonitor.settings.warningKnockDeg) Theme.WARN else Theme.TEXT)
                 }
             }
         }
