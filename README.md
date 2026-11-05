@@ -1,60 +1,23 @@
-# MonitorTune
+# MonitorTune — OSE $11P V104 ALDL
 
-Android automotive diagnostics and tuning workbench.
+A dedicated Android live-data and VE-capture workspace for the user's GM Delco OSE $11P V104 3-bar setup.
 
-**Current imported source snapshot:** MonitorTune v5.0 — TunerPro Workbench  
-**Primary platform:** Android / Kotlin  
-**Package namespace:** `com.dan.ose11p`
+## App focus
+- USB raw serial ALDL connection only (8192 baud, 8N1).
+- OSE $11P Mode 1 Message 0 live data.
+- Full-screen VE capture/table workspace.
+- Live RPM, boost and coolant gauges.
+- IAC gauge placeholder is shown but intentionally marked unavailable until the exact IAC byte offset and scaling are verified against the matching ADX definition.
+- Existing engine alarms, warnings, audible alerts and mute control remain.
+- VE BIN loading, sampling, fill/smoothing and export remain available.
 
-## Project focus
+## Not included in the user interface
+Generic OBD-II / ELM327, other vehicle makes, multi-vehicle profiles, workshop tools, spark table workspace, dyno tools, AI/Gemini diagnosis and the separate V4 lab are removed from the app navigation. The connection action is restricted to the USB ALDL link.
 
-MonitorTune is intended to provide a workshop-oriented interface for vehicle diagnostics, live data capture, logging and calibration analysis. GM Delco / OSE $11P is the specialist development focus, with generic OBD-II and a modular path for additional vehicle families.
+## Protocol and safety
+The live link uses the OSE $11P V104 3-bar Mode 1 Message 0 frame definition in `Core.kt`. Do not use this build with a different ECM/OS without checking the protocol and data layout. No live ECU calibration writing or flashing is implemented. VE changes are exported as a BIN file for separate verification and programming.
 
-## Included in the v5.1 source snapshot
-
-- Android application project using Gradle Kotlin DSL.
-- USB/serial and ELM327 communication components.
-- Vehicle profiles and support catalogue.
-- Protocol support definitions and diagnostics helpers.
-- Session logging, alerts and AI-assisted diagnostic helper.
-- Dyno calculation and workshop engine utilities.
-- TunerPro XDF definition import/inspection utilities.
-- Unit tests for workshop engine and TunerPro definition components.
-- Changelogs documenting the v2–v5 development snapshots.
-
-## EFILive V4-style ALDL scanner development
-
-The Android app now includes a separate V4 Lab workflow:
-- USB raw serial and Bluetooth Classic SPP raw-UART connections (not ELM327).
-- Importable MonitorTuneV4 vehicle/module/request definitions.
-- F6-style configured macro execution, F7-style live request decoding, and F8-style live gauges/trend chart.
-- Raw TX/RX monitor, configurable polling/response timing, definition-specific DTC read/clear, and CSV session logging.
-
-This is an independent scanner implementation, not an EFILive product or a drop-in replacement. It does not yet parse proprietary EFILive V4 definition XML. It requires a verified definition for the exact ECM and compatible raw ALDL interface. DTC clear and state-changing macros are confirmation-gated. No ECU flashing or calibration writes are included.
-
-Read [the V4 definition format and setup guide](docs/V4_DEFINITION_FORMAT.md) and [implementation status](docs/IMPLEMENTATION_STATUS.md) before use. The example XML is intentionally non-transmittable and contains a placeholder byte only.
-
-## Important compatibility and safety notes
-
-This repository is a development snapshot, not a claim of universal vehicle compatibility.
-
-- An ELM327 adapter does not make every manufacturer-specific diagnostic service available.
-- Generic OBD-II functions must be treated separately from enhanced OEM diagnostics.
-- Protocol/catalogue entries may be definitions or framework support rather than verified end-to-end implementations.
-- XDF inspection/import is not equivalent to complete ADX/XDF compatibility or calibration writing.
-- ECU flashing/writing is not represented as supported unless transport, checksum, recovery and hardware validation have been implemented and tested.
-- Delco ECM operating systems and definition files must be matched carefully; $11P, $12P and other Delco variants are not interchangeable by assumption.
+The IAC display is not populated with a guessed byte. Supply the exact matching `OSE_$11P V104 3Bar.adx` definition to map its correct field and scaling.
 
 ## Build
-
-Open the Android project in Android Studio and allow Gradle sync. The project uses the Gradle wrapper configuration in the repository where available. Build and run on a test device before connecting to a vehicle.
-
-Hardware testing should be performed with the vehicle safely secured, suitable interface hardware, and a recovery plan. Do not perform experimental writes to a live ECU.
-
-## Development status
-
-See [IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md) for the distinction between included code, partial/framework components and features that still require validation.
-
-## License
-
-No license has been assigned yet. All rights remain with the copyright holder until a license is added.
+Open `OSE11P_Android` in Android Studio, sync Gradle and build the debug APK. Test the serial interface and all alarm thresholds on the vehicle before relying on live warnings.
