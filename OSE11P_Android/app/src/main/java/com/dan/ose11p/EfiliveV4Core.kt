@@ -210,7 +210,7 @@ object V4DefinitionImporter {
         val readDtc = root.attr("dtcReadRequestId").ifBlank { null }
         val clearDtc = root.attr("dtcClearRequestId").ifBlank { null }
         require(readDtc == null || requests.any { it.id == readDtc }) { "DTC read request id is not defined." }
-        require(clearDtc == null || requests.any { it.id == clearDtc }) { "DTC clear request id is not defined." }
+        require(clearDtc == null || requests.any { it.id == clearDtc && it.requiresConfirmation }) { "DTC clear request must exist and be marked requiresConfirmation=true." }
         val connectHex = root.attr("connectHex").takeIf { it.isNotBlank() }?.also { V4Hex.parse(it) }
         val disconnectHex = root.attr("disconnectHex").takeIf { it.isNotBlank() }?.also { V4Hex.parse(it) }
         val baud = root.attr("baud", "8192").toInt()
