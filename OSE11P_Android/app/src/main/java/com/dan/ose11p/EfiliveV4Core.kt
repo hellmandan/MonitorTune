@@ -39,10 +39,11 @@ data class V4Request(
     val responseOffset: Int = 0,
     val responseLength: Int = 0,
     val checksum: V4Checksum = V4Checksum.NONE,
-    val notes: String = ""
+    val notes: String = "",
+    val pollIntervalMs: Long = 0
 )
 
-data class V4MacroStep(val requestId: String, val delayMs: Long = 100)
+data class V4DtcRule(val code: String, val description: String, val offset: Int, val mask: Int = 0xff, val value: Int)\ndata class V4MacroStep(val requestId: String, val delayMs: Long = 100)
 data class V4Macro(val id: String, val name: String, val steps: List<V4MacroStep>, val requiresConfirmation: Boolean = false)
 data class V4VehicleDefinition(
     val id: String,
@@ -54,7 +55,10 @@ data class V4VehicleDefinition(
     val parameters: List<V4Parameter> = emptyList(),
     val requests: List<V4Request> = emptyList(),
     val macros: List<V4Macro> = emptyList(),
-    val warnings: List<String> = emptyList()
+    val warnings: List<String> = emptyList(),
+    val dtcReadRequestId: String? = null,
+    val dtcClearRequestId: String? = null,
+    val dtcRules: List<V4DtcRule> = emptyList()
 )
 
 data class V4DecodedValue(val parameter: V4Parameter, val raw: Long, val value: Double)
@@ -176,8 +180,8 @@ object V4DefinitionImporter {
                 e.attr("id", "r$i"), e.attr("name", "Request ${i + 1}"),
                 e.attr("tx"), e.attr("responseOffset", "0").toInt(),
                 e.attr("responseLength", "0").toInt(),
-                V4Checksum.valueOf(e.attr("checksum", "NONE").uppercase()), e.attr("notes")
-            ).also { V4Hex.parse(it.txHex); require(it.responseOffset >= 0 && it.responseLength >= 0) }
+                V4Checksum.valueOf(e.attr("checksum", "NONE").uppercase()), e.attr("notes"), e.attr("pollIntervalMs", "0").toLong()
+            ).also { V4Hex.parse(it.txHex); require(it.responseOffset >= 0 && it.responseLength >= 0 && it.pollIntervalMs in 0..60000) }
         }
         val macros = root.children("macro").mapIndexed { i, e ->
             val steps = e.children("step").map { V4MacroStep(it.attr("request"), it.attr("delayMs", "100").toLong()) }
@@ -186,7 +190,7 @@ object V4DefinitionImporter {
             }
             V4Macro(e.attr("id", "m$i"), e.attr("name", "Macro ${i + 1}"), steps, e.attr("requiresConfirmation", "false").toBoolean())
         }
-        val baud = root.attr("baud", "8192").toInt()
+        val dtcRules = root.children("dtc").map { e ->\n            V4DtcRule(e.attr("code"), e.attr("description"), e.attr("offset").toInt(), e.attr("mask", "255").toInt(), e.attr("value").toInt())\n                .also { require(it.code.isNotBlank() && it.offset >= 0 && it.mask in 0..255 && it.value in 0..255) }\n        }\n        val readDtc = root.attr("dtcReadRequestId").ifBlank { null }\n        val clearDtc = root.attr("dtcClearRequestId").ifBlank { null }\n        require(readDtc == null || requests.any { it.id == readDtc }) { "DTC read request id is not defined." }\n        require(clearDtc == null || requests.any { it.id == clearDtc }) { "DTC clear request id is not defined." }\n        val baud = root.attr("baud", "8192").toInt()
         require(baud in 300..1000000) { "Invalid serial baud rate." }
         return V4VehicleDefinition(root.attr("id", "custom"), root.attr("name", "Imported vehicle"), baud,
             root.attr("dataBits", "8").toInt(), root.attr("stopBits", "1").toInt(), root.attr("parity", "NONE"),
@@ -230,4 +234,32 @@ class V4ChartHistory(private val maxPoints: Int = 3000) {
     }
     fun get(id: String): List<V4ChartPoint> = series[id]?.toList().orEmpty()
     fun clear() = series.clear()
+}
+
+
+/** Runs only explicitly configured requests; no protocol commands are invented. */
+class V4MacroExecutor(private val definition: V4VehicleDefinition, private val transport: V4RawTransport) {
+    fun execute(macro: V4Macro, onStep: (Int, V4Request, V4FrameResult) -> Unit) {
+        macro.steps.forEachIndexed { index, step ->
+            val request = definition.requests.firstOrNull { it.id == step.requestId }
+                ?: error("Macro references missing request ${step.requestId}")
+            val tx = V4Hex.parse(request.txHex)
+            transport.write(tx)
+            val rx = transport.read(1200)
+            require(rx.isNotEmpty()) { "No response to ${request.name}" }
+            onStep(index, request, V4Protocol.decode(rx, definition, request))
+            if (step.delayMs > 0) Thread.sleep(step.delayMs)
+        }
+    }
+}
+
+object V4DtcDecoder {
+    fun decode(frame: ByteArray, definition: V4VehicleDefinition, request: V4Request): List<Pair<String, String>> {
+        val base = request.responseOffset.coerceAtLeast(0)
+        val end = if (request.responseLength > 0) (base + request.responseLength).coerceAtMost(frame.size) else frame.size
+        if (base >= end) return emptyList()
+        return definition.dtcRules.filter { rule ->
+            rule.offset in base until end && ((frame[rule.offset].toInt() and 0xff) and rule.mask) == rule.value
+        }.map { it.code to it.description }
+    }
 }
