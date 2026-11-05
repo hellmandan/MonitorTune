@@ -51,7 +51,7 @@ class EfLiveV4CoreTest {
         val recorder = V4SessionRecorder()
         recorder.add(listOf(V4DecodedValue(p, 2000, 2000.0)))
         val csv = recorder.toCsv(V4VehicleDefinition("x", "Test", 8192, parameters = listOf(p)))
-        assertTrue(csv.contains("elapsed_ms,"))
+        assertTrue(csv.contains("\"elapsed_ms\","))
         val chart = V4ChartHistory(2)
         (1L..3L).forEach { chart.add("rpm", V4ChartPoint(it, it.toDouble())) }
         assertEquals(2, chart.get("rpm").size)
