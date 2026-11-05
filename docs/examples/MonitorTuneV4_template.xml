@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- TEMPLATE ONLY. TX=00 is a deliberate placeholder, not a valid ECM request. -->
+<MonitorTuneV4 id="example-template" name="NOT A VEHICLE DEFINITION"
+               baud="8192" dataBits="8" stopBits="1" parity="NONE">
+    <parameter id="rpm" name="Engine RPM" offset="0" width="2"
+               endian="BIG" signed="false" scale="0.25" add="0" units="rpm"/>
+    <request id="read-data" name="PLACEHOLDER - DO NOT TRANSMIT"
+             module="ECM" tx="00" responseOffset="0" responseLength="0"
+             checksum="NONE" responseTimeoutMs="1200" quietTimeMs="60"
+             pollIntervalMs="0" requiresConfirmation="true"/>
+    <macro id="example-macro" name="PLACEHOLDER - DO NOT RUN"
+           requiresConfirmation="true">
+        <step request="read-data" delayMs="100"/>
+    </macro>
+</MonitorTuneV4>
