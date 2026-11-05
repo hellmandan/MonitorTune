@@ -197,7 +197,7 @@ class MainActivity : ComponentActivity() {
     private val openV4Definition = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         if (uri != null) try {
             val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: error("Could not read definition")
-            v4Definition = V4DefinitionImporter.import(bytes)
+            disconnectV4()\n            v4Definition = V4DefinitionImporter.import(bytes)
             v4Recorder = V4SessionRecorder(); v4Chart.clear(); v4LastDecoded = null
             refreshV4Definition()
             Toast.makeText(this, "MonitorTune V4 definition imported", Toast.LENGTH_LONG).show()
@@ -992,7 +992,7 @@ class MainActivity : ComponentActivity() {
         val transport = v4Transport ?: throw IllegalStateException("Serial interface disconnected.")
         val tx = V4Hex.parse(request.txHex)
         transport.write(tx)
-        val rx = transport.read(1500)
+        val rx = transport.read(request.responseTimeoutMs, request.quietTimeMs)
         if (rx.isEmpty()) throw java.io.IOException("No response to ${request.name} (timeout).")
         val def = v4Definition ?: throw IllegalStateException("No vehicle definition loaded.")
         val result = V4Protocol.decode(rx, def, request)
