@@ -233,30 +233,6 @@ object VehicleSupportCatalog {
 
 enum class DtcStatus { STORED, PENDING, PERMANENT }
 data class TroubleCode(val code: String, val status: DtcStatus, val description: String)
-object DtcCatalog {
-    fun description(code: String): String = when (code.uppercase()) {
-        "P0100" -> "Mass or volume air flow circuit malfunction"
-        "P0101" -> "Mass or volume air flow circuit range/performance"
-        "P0102" -> "Mass or volume air flow circuit low input"
-        "P0103" -> "Mass or volume air flow circuit high input"
-        "P0115" -> "Engine coolant temperature circuit malfunction"
-        "P0117" -> "Engine coolant temperature circuit low input"
-        "P0118" -> "Engine coolant temperature circuit high input"
-        "P0120" -> "Throttle/pedal position sensor circuit malfunction"
-        "P0171" -> "System too lean, bank 1"
-        "P0172" -> "System too rich, bank 1"
-        "P0300" -> "Random/multiple cylinder misfire detected"
-        "P0301" -> "Cylinder 1 misfire detected"
-        "P0325" -> "Knock sensor circuit malfunction"
-        "P0335" -> "Crankshaft position sensor circuit malfunction"
-        "P0340" -> "Camshaft position sensor circuit malfunction"
-        "P0420" -> "Catalyst system efficiency below threshold, bank 1"
-        "P0440" -> "Evaporative emission control system malfunction"
-        "P0500" -> "Vehicle speed sensor malfunction"
-        else -> "Generic OBD-II trouble code; confirm description using vehicle-specific service information."
-    }
-}
-
 object DiagnosticReportText {
     fun build(
         profile: VehicleProfile?,
