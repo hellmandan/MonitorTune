@@ -188,7 +188,7 @@ object V4DefinitionImporter {
                 e.attr("tx"), e.attr("responseOffset", "0").toInt(),
                 e.attr("responseLength", "0").toInt(),
                 V4Checksum.valueOf(e.attr("checksum", "NONE").uppercase()), e.attr("notes"), e.attr("pollIntervalMs", "0").toLong(), e.attr("requiresConfirmation", "false").toBoolean(), e.attr("module", "ECM"), e.attr("responseTimeoutMs", "1200").toInt(), e.attr("quietTimeMs", "60").toInt()
-            ).also { V4Hex.parse(it.txHex); require(it.responseOffset >= 0 && it.responseLength >= 0 && it.pollIntervalMs in 0..60000 && it.responseTimeoutMs in 50..10000 && it.quietTimeMs in 5..500) }
+            ).also { V4Hex.parse(it.txHex); require(it.responseOffset >= 0 && it.responseLength >= 0 && (it.pollIntervalMs == 0L || it.pollIntervalMs in 100L..60000L) && it.responseTimeoutMs in 50..10000 && it.quietTimeMs in 5..500) }
         }
         val macros = root.children("macro").mapIndexed { i, e ->
             val steps = e.children("step").map { V4MacroStep(it.attr("request"), it.attr("delayMs", "100").toLong()) }
