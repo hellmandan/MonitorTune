@@ -85,6 +85,10 @@ class MainActivity : ComponentActivity() {
     private lateinit var gBoost: ArcGauge
     private lateinit var gCool: ArcGauge
     private lateinit var gSpark: ArcGauge
+    private lateinit var gIac: ArcGauge
+    private lateinit var veRpmGauge: ArcGauge
+    private lateinit var veBoostGauge: ArcGauge
+    private lateinit var veCoolantGauge: ArcGauge
     private lateinit var dashAfr: TextView
     private lateinit var dashMap: TextView
     private lateinit var dashTps: TextView
@@ -538,7 +542,7 @@ class MainActivity : ComponentActivity() {
         banner.addView(bannerIcon, lp(WRAP, WRAP, 0f, dp(4)))
         banner.addView(bannerCol, lp(0, WRAP, 1f, dp(4)))
         banner.addView(bannerSilence, lp(WRAP, WRAP, 0f, dp(2)))
-        banner.setOnClickListener { selectTab(5) }
+        banner.setOnClickListener { selectTab(0) }
         banner.visibility = View.GONE
         val bannerLp = FrameLayout.LayoutParams(MATCH, WRAP)
         bannerLp.gravity = android.view.Gravity.TOP
@@ -580,7 +584,7 @@ class MainActivity : ComponentActivity() {
 
         // bottom navigation (built here, attached under the content below)
         val navBar = LinearLayout(this)
-        val names = arrayOf("Log", "Dash", "VE Fill", "Knock / Spark", "DYNO", "AI Doctor", "Workshop", "V4 Lab")
+        val names = arrayOf("VE TABLE")
         tabButtons = Array(names.size) { k ->
             val b = btn(names[k], Theme.CARD) { selectTab(k) }
             b.minimumHeight = dp(46)
@@ -588,7 +592,7 @@ class MainActivity : ComponentActivity() {
             b.minimumWidth = dp(82)
             b
         }
-        for (k in intArrayOf(1, 0, 2, 3, 4, 5, 6, 7)) navBar.addView(tabButtons[k], lp(WRAP, WRAP, 0f, dp(3)))
+        navBar.addView(tabButtons[0], lp(WRAP, WRAP, 0f, dp(3)))
         navScroll = HorizontalScrollView(this)
         navScroll.isHorizontalScrollBarEnabled = false
         navScroll.addView(navBar)
@@ -631,6 +635,8 @@ class MainActivity : ComponentActivity() {
         gBoost = ArcGauge(this, "BOOST", "psi", -14f, 30f, 24f, 1, 10f)
         gCool = ArcGauge(this, "COOLANT", "C", 40f, 130f, 105f, 0, 20f)
         gSpark = ArcGauge(this, "SPARK", "deg", -10f, 50f, Float.MAX_VALUE, 1, 10f)
+        gIac = ArcGauge(this, "IAC", "steps", 0f, 255f, Float.MAX_VALUE, 0, 32f)
+        gIac.setUnavailable()
         layoutDash()
 
         // VE tab
@@ -666,6 +672,18 @@ class MainActivity : ComponentActivity() {
         veBar.addView(chkSmooth)
         veBar.addView(veInfo, lp(WRAP, WRAP, 0f, dp(8)))
         veTab.addView(hscroll(veBar))
+        veTab.addView(label("OSE $11P V104  •  LIVE ENGINE / VE CAPTURE", 11f, Theme.ACCENT).apply { typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD) }, lp(MATCH, WRAP, 0f, dp(3)))
+        val gaugeRow = LinearLayout(this).apply { gravity = android.view.Gravity.CENTER; orientation = LinearLayout.HORIZONTAL }
+        fun gaugeCard(g: View): View { val card = FrameLayout(this); card.background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(Color.rgb(34,43,55), Color.rgb(8,12,19))).apply { cornerRadius = dp(12).toFloat(); setStroke(dp(1), Color.rgb(68,83,102)) }; card.setPadding(dp(3),dp(3),dp(3),dp(3)); card.addView(g, FrameLayout.LayoutParams(MATCH, dp(112))); return card }
+        veRpmGauge = ArcGauge(this, "RPM", "rpm", 0f, 8000f, 6500f, 0, 1000f)
+        veBoostGauge = ArcGauge(this, "BOOST", "psi", -14f, 30f, 24f, 1, 10f)
+        veCoolantGauge = ArcGauge(this, "COOLANT", "°C", 40f, 130f, 105f, 0, 20f)
+        gaugeRow.addView(gaugeCard(veRpmGauge), lp(0, dp(118), 1f, dp(2)))
+        gaugeRow.addView(gaugeCard(veBoostGauge), lp(0, dp(118), 1f, dp(2)))
+        gaugeRow.addView(gaugeCard(veCoolantGauge), lp(0, dp(118), 1f, dp(2)))
+        gaugeRow.addView(gaugeCard(gIac), lp(0, dp(118), 1f, dp(2)))
+        veTab.addView(gaugeRow, lp(MATCH, dp(122), 0f, dp(2)))
+        veTab.addView(label("IAC dial is included; live value is disabled until its byte offset and scaling are verified against the matching OSE $11P V104 ADX.", 9f, Theme.WARN), lp(MATCH, WRAP, 0f, dp(2)))
         val veCol = LinearLayout(this)
         veCol.orientation = LinearLayout.VERTICAL
         veGrids = Array(Cfg.VE_TABLES.size) { ti ->
@@ -945,14 +963,14 @@ class MainActivity : ComponentActivity() {
         v4Tab.addView(v4Actions, lp(MATCH, WRAP, 0f, dp(5)))
         val v4Root = ScrollView(this)
         v4Root.addView(v4Tab)
-        tabs = arrayOf<View>(logTab, dashTab, veTab, spTab, dynoTab, aiRoot, workshopRoot, v4Root)
+        tabs = arrayOf<View>(veTab)
         val holder = FrameLayout(this)
         for (t in tabs) holder.addView(t, FrameLayout.LayoutParams(MATCH, MATCH))
         root.addView(holder, lp(MATCH, 0, 1f, 0))
         root.addView(navScroll, lp(MATCH, WRAP, 0f, 0))
         frame.addView(banner, bannerLp)
         setContentView(frame)
-        selectTab(1) // Dash is the home screen
+        selectTab(0) // VE workspace is the only screen
         root.alpha = 0f
         root.animate().alpha(1f).setDuration(500).start()
     }
@@ -1375,16 +1393,10 @@ class MainActivity : ComponentActivity() {
 
     // ---------------------------------------------------------------- connection
     private fun toggleConnect() {
-        if (link != null || elmLink != null) {
-            link?.stopFlag = true
-            elmLink?.stopFlag = true
-            return
-        }
-        if (chkSim.isChecked) { connectionMode = "SIM"; startLink(true); return }
-        AlertDialog.Builder(this).setTitle("Choose vehicle interface")
-            .setItems(arrayOf("USB ALDL cable — OSE $11P only", "Bluetooth ELM327 — generic OBD-II")) { _, which ->
-                if (which == 0) connectUsbAldl() else chooseElm327()
-            }.setNegativeButton("Cancel", null).show()
+        if (link != null) { link?.stopFlag = true; return }
+        connectionMode = "ALDL"
+        chkSim.isChecked = false
+        connectUsbAldl()
     }
 
     private fun connectUsbAldl() {
@@ -1707,7 +1719,14 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-        if (activeTab == 2) renderVe()
+        if (activeTab == 0) {
+            renderVe()
+            last?.let { sample ->
+                veRpmGauge.setValue(sample.rpm.toFloat())
+                veBoostGauge.setValue(sample.boostPsi.toFloat())
+                veCoolantGauge.setValue(sample.coolant.toFloat())
+            }
+        }
         if (activeTab == 3) renderSp()
         if (activeTab == 4) refreshDyno()
         if (activeTab == 5) refreshAi()
@@ -1778,6 +1797,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun updateNavBadge(sev: Sev) {
+        return
         val key = if (activeTab != 5 && sev != Sev.NONE) sev.name else "off"
         if (key == badgeKey) return
         badgeKey = key
