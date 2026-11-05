@@ -26,7 +26,9 @@ data class V4Parameter(
     val scale: Double = 1.0,
     val add: Double = 0.0,
     val units: String = "",
-    val description: String = ""
+    val description: String = "",
+    val minValue: Double? = null,
+    val maxValue: Double? = null
 )
 
 enum class V4Endian { BIG, LITTLE }
@@ -179,8 +181,8 @@ object V4DefinitionImporter {
                 e.attr("offset").toIntOrNull() ?: error("Parameter ${i + 1}: invalid offset."),
                 e.attr("width", "1").toInt(), V4Endian.valueOf(e.attr("endian", "BIG").uppercase()),
                 e.attr("signed", "false").toBoolean(), e.attr("scale", "1").toDouble(),
-                e.attr("add", "0").toDouble(), e.attr("units"), e.attr("description")
-            ).also { require(it.offset >= 0 && it.width in 1..4 && it.scale.isFinite() && it.add.isFinite()) { "Invalid parameter ${it.name}." } }
+                e.attr("add", "0").toDouble(), e.attr("units"), e.attr("description"),\n                e.attr("min").takeIf { it.isNotBlank() }?.toDouble(), e.attr("max").takeIf { it.isNotBlank() }?.toDouble()
+            ).also { require(it.offset >= 0 && it.width in 1..4 && it.scale.isFinite() && it.add.isFinite() && (it.minValue == null || it.minValue.isFinite()) && (it.maxValue == null || it.maxValue.isFinite()) && (it.minValue == null || it.maxValue == null || it.minValue < it.maxValue)) { "Invalid parameter ${it.name}." } }
         }
         val requests = root.children("request").mapIndexed { i, e ->
             V4Request(
