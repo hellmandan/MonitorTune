@@ -58,3 +58,41 @@ class V4LiveChartView(context: Context) : View(context) {
         canvas.drawLine(left, bottom, right, bottom, axisPaint)
     }
 }
+
+
+/** Compact definition-scaled dial for the live V4 dashboard. */
+class V4MiniGaugeView(context: Context, private val parameter: V4Parameter) : View(context) {
+    private val track = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xff475569.toInt(); style = Paint.Style.STROKE; strokeWidth = 8f; strokeCap = Paint.Cap.ROUND }
+    private val active = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xff22c55e.toInt(); style = Paint.Style.STROKE; strokeWidth = 8f; strokeCap = Paint.Cap.ROUND }
+    private val needle = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xfff8fafc.toInt(); strokeWidth = 2.5f; strokeCap = Paint.Cap.ROUND }
+    private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xffe2e8f0.toInt(); textAlign = Paint.Align.CENTER; textSize = 11f }
+    private var current: Double? = null
+    private val low = parameter.minValue ?: if (parameter.signed) -(1L shl (parameter.width * 8 - 1)).toDouble() * parameter.scale + parameter.add else parameter.add
+    private val high = parameter.maxValue ?: if (parameter.signed) ((1L shl (parameter.width * 8 - 1)) - 1).toDouble() * parameter.scale + parameter.add else ((1L shl (parameter.width * 8)) - 1).toDouble() * parameter.scale + parameter.add
+
+    fun setValue(value: Double) { current = value; invalidate() }
+
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
+        val cx = width / 2f
+        val cy = height * 0.68f
+        val radius = min(width * 0.36f, height * 0.48f)
+        val oval = android.graphics.RectF(cx - radius, cy - radius, cx + radius, cy + radius)
+        canvas.drawArc(oval, 135f, 270f, false, track)
+        val value = current
+        if (value != null) {
+            val ratio = if (high > low) ((value - low) / (high - low)).coerceIn(0.0, 1.0) else 0.0
+            canvas.drawArc(oval, 135f, (270.0 * ratio).toFloat(), false, active)
+            val angle = Math.toRadians(135.0 + 270.0 * ratio)
+            canvas.drawLine(cx, cy, cx + (radius * 0.78f * kotlin.math.cos(angle)).toFloat(), cy + (radius * 0.78f * kotlin.math.sin(angle)).toFloat(), needle)
+            text.textSize = 14f
+            canvas.drawText(String.format(java.util.Locale.US, "%.2f", value), cx, cy + radius * 0.55f, text)
+        } else {
+            text.textSize = 12f
+            canvas.drawText("—", cx, cy + radius * 0.55f, text)
+        }
+        text.textSize = 10f
+        canvas.drawText(parameter.name.take(18), cx, height - 15f, text)
+        canvas.drawText(parameter.units, cx, height - 3f, text)
+    }
+}
