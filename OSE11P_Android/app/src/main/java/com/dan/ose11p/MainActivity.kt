@@ -954,10 +954,10 @@ class MainActivity : ComponentActivity() {
 
     private fun disconnectV4() {
         stopV4Polling()
+        val endHex = v4Definition?.disconnectHex
         v4Io.execute {
             try {
                 val t = v4Transport
-                val endHex = v4Definition?.disconnectHex
                 if (t != null && endHex != null) t.write(V4Hex.parse(endHex))
                 t?.close()
             } catch (_: Exception) {}
