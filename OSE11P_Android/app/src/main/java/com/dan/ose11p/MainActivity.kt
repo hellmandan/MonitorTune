@@ -110,6 +110,15 @@ class MainActivity : ComponentActivity() {
     private var v4Chart = V4ChartHistory()
     private var v4Info: TextView? = null
     private var v4Values: TextView? = null
+    private var v4Status: TextView? = null
+    private var v4RawMonitor: TextView? = null
+    private var v4ChartView: V4LiveChartView? = null
+    private var v4Transport: V4RawTransport? = null
+    private val v4Io = Executors.newSingleThreadExecutor()
+    private var v4PendingConnect = false
+    private var v4Polling = false
+    private var v4TrendParameterId: String? = null
+    private var v4PollRunnable: Runnable? = null
     private val aiMonitor = AiMonitor()
     private var aiSummary: TextView? = null
     private var aiDataStatus: TextView? = null
@@ -222,7 +231,8 @@ class MainActivity : ComponentActivity() {
         override fun onReceive(context: Context, intent: Intent) {
             if (intent.action == ACTION_USB_PERMISSION) {
                 val ok = intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)
-                if (ok) startLink(false) else setStatus("USB permission denied")
+                if (v4PendingConnect) { v4PendingConnect = false; if (ok) startV4UsbTransport() else setV4Status("USB permission denied") }
+                else if (ok) startLink(false) else setStatus("USB permission denied")
             }
         }
     }
@@ -254,6 +264,11 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
         link?.stopFlag = true
         elmLink?.stopFlag = true
+        v4Polling = false
+        v4PollRunnable?.let { handler.removeCallbacks(it) }
+        try { v4Transport?.close() } catch (_: Exception) {}
+        v4Transport = null
+        v4Io.shutdownNow()
         bgAnim?.cancel()
         bannerAnim?.cancel()
         navPulse?.cancel()
@@ -813,44 +828,53 @@ class MainActivity : ComponentActivity() {
             setPadding(dp(10), dp(10), dp(10), dp(10))
         }
         v4Tab.addView(label("EFILIVE V4-STYLE ALDL SCANNER", 17f, Theme.TEXT), lp(MATCH, WRAP, 0f, dp(6)))
-        v4Tab.addView(label("Independent MonitorTune implementation. Import the documented MonitorTuneV4 XML definition, inspect raw frames, decode configured parameters, review macros and export a CSV session. Live serial transmission is intentionally not enabled until the exact ECU definition and adapter timing are verified.", 11f, Theme.WARN), lp(MATCH, WRAP, 0f, dp(8)))
-        v4Tab.addView(btn("Import MonitorTuneV4 XML", Color.parseColor("#2563EB")) { openV4Definition.launch(arrayOf("text/xml", "application/xml", "text/plain")) }, lp(MATCH, WRAP, 0f, dp(6)))
+        v4Tab.addView(label("Independent, definition-driven GM ALDL scanner. Use a verified raw-serial ALDL interface; an ELM327 is not a raw ALDL adapter. Never use an unverified command definition.", 11f, Theme.WARN), lp(MATCH, WRAP, 0f, dp(8)))
+        v4Tab.addView(btn("Import vehicle definition XML", Color.parseColor("#2563EB")) { openV4Definition.launch(arrayOf("text/xml", "application/xml", "text/plain")) }, lp(MATCH, WRAP, 0f, dp(5)))
         v4Info = label("No V4 definition loaded.", 12f, Theme.MUTED)
         v4Info?.setPadding(dp(9), dp(8), dp(9), dp(8)); v4Info?.background = rounded(Theme.CARD, 9)
-        v4Tab.addView(v4Info, lp(MATCH, WRAP, 0f, dp(8)))
-        val rawFrame = EditText(this).apply {
-            hint = "Paste received frame as hex, e.g. F4 57 ..."
-            setTextColor(Theme.TEXT); setHintTextColor(Theme.MUTED); setSingleLine(false); minLines = 2
-        }
-        v4Tab.addView(rawFrame, lp(MATCH, WRAP, 0f, dp(5)))
-        v4Tab.addView(btn("Decode received frame", Color.parseColor("#0E9F6E")) {
-            try {
-                val def = v4Definition ?: error("Import a MonitorTuneV4 definition first.")
-                val bytes = V4Hex.parse(rawFrame.text.toString())
-                val result = V4Protocol.decode(bytes, def)
-                v4LastDecoded = result
-                v4Recorder.add(result.values)
-                val now = System.currentTimeMillis()
-                result.values.forEach { v4Chart.add(it.parameter.id, V4ChartPoint(now, it.value)) }
-                v4Values?.text = buildString {
-                    result.values.forEach { appendLine("${it.parameter.name}: ${String.format(Locale.US, "%.3f", it.value)} ${it.parameter.units}  [raw ${it.raw}]") }
-                    result.warnings.forEach { appendLine("WARNING: $it") }
-                    if (result.values.isEmpty() && result.warnings.isEmpty()) append("No parameter definitions.")
-                }
-            } catch (e: Exception) { Toast.makeText(this, "Decode failed: ${e.message}", Toast.LENGTH_LONG).show() }
-        }, lp(MATCH, WRAP, 0f, dp(6)))
-        v4Values = label("Decoded values appear here.", 12f, Theme.TEXT)
+        v4Tab.addView(v4Info, lp(MATCH, WRAP, 0f, dp(5)))
+        v4Status = label("Disconnected — no ALDL serial interface open.", 12f, Theme.WARN)
+        v4Tab.addView(v4Status, lp(MATCH, WRAP, 0f, dp(5)))
+        val v4ConnectRow = LinearLayout(this)
+        v4ConnectRow.addView(btn("USB serial", Color.parseColor("#0E9F6E")) { connectV4Usb() }, lp(0, WRAP, 1f, dp(2)))
+        v4ConnectRow.addView(btn("Bluetooth SPP", Color.parseColor("#2563EB")) { connectV4Bluetooth() }, lp(0, WRAP, 1f, dp(2)))
+        v4ConnectRow.addView(btn("Disconnect", Color.parseColor("#B91C1C")) { disconnectV4() }, lp(0, WRAP, 1f, dp(2)))
+        v4Tab.addView(v4ConnectRow, lp(MATCH, WRAP, 0f, dp(5)))
+        val v4RequestRow = LinearLayout(this)
+        v4RequestRow.addView(btn("Requests / send", Theme.CARD_HI) { showV4Requests() }, lp(0, WRAP, 1f, dp(2)))
+        v4RequestRow.addView(btn("Start polling", Color.parseColor("#0E9F6E")) { startV4Polling() }, lp(0, WRAP, 1f, dp(2)))
+        v4RequestRow.addView(btn("Stop polling", Color.parseColor("#B91C1C")) { stopV4Polling() }, lp(0, WRAP, 1f, dp(2)))
+        v4Tab.addView(v4RequestRow, lp(MATCH, WRAP, 0f, dp(5)))
+        val v4DtcRow = LinearLayout(this)
+        v4DtcRow.addView(btn("Read DTCs", Theme.CARD_HI) { readV4Dtcs() }, lp(0, WRAP, 1f, dp(2)))
+        v4DtcRow.addView(btn("Clear DTCs", Color.parseColor("#B45309")) { clearV4Dtcs() }, lp(0, WRAP, 1f, dp(2)))
+        v4DtcRow.addView(btn("Macros", Theme.CARD_HI) { showV4Macros() }, lp(0, WRAP, 1f, dp(2)))
+        v4Tab.addView(v4DtcRow, lp(MATCH, WRAP, 0f, dp(5)))
+        v4ChartView = V4LiveChartView(this).apply { setBackgroundColor(Theme.CARD) }
+        v4Tab.addView(btn("Choose trend parameter", Theme.CARD_HI) { chooseV4TrendParameter() }, lp(MATCH, WRAP, 0f, dp(3)))
+        v4Tab.addView(v4ChartView, lp(MATCH, dp(180), 0f, dp(4)))
+        v4Values = label("Decoded ALDL values will appear here.", 12f, Theme.TEXT)
         v4Values?.setPadding(dp(9), dp(8), dp(9), dp(8)); v4Values?.background = rounded(Theme.CARD, 9)
-        val v4Scroll = ScrollView(this)
-        v4Scroll.addView(v4Values)
-        v4Tab.addView(v4Scroll, lp(MATCH, 0, 1f, dp(6)))
+        v4Tab.addView(v4Values, lp(MATCH, WRAP, 0f, dp(5)))
+        v4RawMonitor = label("RAW SERIAL MONITOR\nTX: —\nRX: —", 11f, Theme.MUTED)
+        v4RawMonitor?.setPadding(dp(9), dp(8), dp(9), dp(8)); v4RawMonitor?.background = rounded(Theme.CARD, 9)
+        v4Tab.addView(v4RawMonitor, lp(MATCH, WRAP, 0f, dp(5)))
+        val rawFrame = EditText(this).apply { hint = "Offline frame decode (hex)"; setTextColor(Theme.TEXT); setHintTextColor(Theme.MUTED); minLines = 2 }
+        v4Tab.addView(rawFrame, lp(MATCH, WRAP, 0f, dp(4)))
+        v4Tab.addView(btn("Decode offline frame", Color.parseColor("#0E9F6E")) {
+            try {
+                val def = v4Definition ?: error("Import a definition first.")
+                val result = V4Protocol.decode(V4Hex.parse(rawFrame.text.toString()), def)
+                displayV4Result(result, null)
+            } catch (e: Exception) { Toast.makeText(this, "Decode failed: ${e.message}", Toast.LENGTH_LONG).show() }
+        }, lp(MATCH, WRAP, 0f, dp(4)))
         val v4Actions = LinearLayout(this)
         v4Actions.addView(btn("Export CSV", Theme.BLUE) {
             val def = v4Definition
-            if (def == null || v4Recorder.snapshot().isEmpty()) Toast.makeText(this, "Import a definition and decode at least one frame first.", Toast.LENGTH_LONG).show()
+            if (def == null || v4Recorder.snapshot().isEmpty()) Toast.makeText(this, "No decoded session data to export.", Toast.LENGTH_LONG).show()
             else { pendingBytes = v4Recorder.toCsv(def).toByteArray(); saveCsv.launch("efilive_v4_session.csv") }
-        }, lp(0, WRAP, 1f, dp(3)))
-        v4Actions.addView(btn("Macro list", Theme.CARD_HI) { showV4Macros() }, lp(0, WRAP, 1f, dp(3)))
+        }, lp(0, WRAP, 1f, dp(2)))
+        v4Actions.addView(btn("Macro list", Theme.CARD_HI) { showV4Macros() }, lp(0, WRAP, 1f, dp(2)))
         v4Tab.addView(v4Actions, lp(MATCH, WRAP, 0f, dp(5)))
         val v4Root = ScrollView(this)
         v4Root.addView(v4Tab)
