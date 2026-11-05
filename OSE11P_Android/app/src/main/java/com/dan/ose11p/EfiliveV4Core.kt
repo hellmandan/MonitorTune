@@ -41,7 +41,10 @@ data class V4Request(
     val checksum: V4Checksum = V4Checksum.NONE,
     val notes: String = "",
     val pollIntervalMs: Long = 0,
-    val requiresConfirmation: Boolean = false
+    val requiresConfirmation: Boolean = false,
+    val module: String = "ECM",
+    val responseTimeoutMs: Int = 1200,
+    val quietTimeMs: Int = 60
 )
 
 data class V4DtcRule(val code: String, val description: String, val offset: Int, val mask: Int = 0xff, val value: Int)
@@ -60,7 +63,9 @@ data class V4VehicleDefinition(
     val warnings: List<String> = emptyList(),
     val dtcReadRequestId: String? = null,
     val dtcClearRequestId: String? = null,
-    val dtcRules: List<V4DtcRule> = emptyList()
+    val dtcRules: List<V4DtcRule> = emptyList(),
+    val connectHex: String? = null,
+    val disconnectHex: String? = null
 )
 
 data class V4DecodedValue(val parameter: V4Parameter, val raw: Long, val value: Double)
@@ -182,8 +187,8 @@ object V4DefinitionImporter {
                 e.attr("id", "r$i"), e.attr("name", "Request ${i + 1}"),
                 e.attr("tx"), e.attr("responseOffset", "0").toInt(),
                 e.attr("responseLength", "0").toInt(),
-                V4Checksum.valueOf(e.attr("checksum", "NONE").uppercase()), e.attr("notes"), e.attr("pollIntervalMs", "0").toLong(), e.attr("requiresConfirmation", "false").toBoolean()
-            ).also { V4Hex.parse(it.txHex); require(it.responseOffset >= 0 && it.responseLength >= 0 && it.pollIntervalMs in 0..60000) }
+                V4Checksum.valueOf(e.attr("checksum", "NONE").uppercase()), e.attr("notes"), e.attr("pollIntervalMs", "0").toLong(), e.attr("requiresConfirmation", "false").toBoolean(), e.attr("module", "ECM"), e.attr("responseTimeoutMs", "1200").toInt(), e.attr("quietTimeMs", "60").toInt()
+            ).also { V4Hex.parse(it.txHex); require(it.responseOffset >= 0 && it.responseLength >= 0 && it.pollIntervalMs in 0..60000 && it.responseTimeoutMs in 50..10000 && it.quietTimeMs in 5..500) }
         }
         val macros = root.children("macro").mapIndexed { i, e ->
             val steps = e.children("step").map { V4MacroStep(it.attr("request"), it.attr("delayMs", "100").toLong()) }
@@ -203,7 +208,7 @@ object V4DefinitionImporter {
         val clearDtc = root.attr("dtcClearRequestId").ifBlank { null }
         require(readDtc == null || requests.any { it.id == readDtc }) { "DTC read request id is not defined." }
         require(clearDtc == null || requests.any { it.id == clearDtc }) { "DTC clear request id is not defined." }
-        val baud = root.attr("baud", "8192").toInt()
+        val connectHex = root.attr("connectHex").takeIf { it.isNotBlank() }?.also { V4Hex.parse(it) }\n        val disconnectHex = root.attr("disconnectHex").takeIf { it.isNotBlank() }?.also { V4Hex.parse(it) }\n        val baud = root.attr("baud", "8192").toInt()
         require(baud in 300..1000000) { "Invalid serial baud rate." }
         val ids = (parameters.map { it.id } + requests.map { it.id } + macros.map { it.id })
         require(ids.size == ids.distinct().size) { "Definition contains duplicate ids." }
@@ -261,7 +266,7 @@ class V4MacroExecutor(private val definition: V4VehicleDefinition, private val t
             require(!request.requiresConfirmation || macro.requiresConfirmation) { "Macro requires explicit confirmation because it contains a state-changing request." }
             val tx = V4Hex.parse(request.txHex)
             transport.write(tx)
-            val rx = transport.read(1200)
+            val rx = transport.read(request.responseTimeoutMs, request.quietTimeMs)
             require(rx.isNotEmpty()) { "No response to ${request.name}" }
             onStep(index, request, V4Protocol.decode(rx, definition, request))
             if (step.delayMs > 0) Thread.sleep(step.delayMs)
