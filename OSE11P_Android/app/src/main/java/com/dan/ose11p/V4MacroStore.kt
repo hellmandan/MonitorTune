@@ -33,11 +33,11 @@ object V4MacroStore {
         return try {
             val raw = context.getSharedPreferences("v4_macros", Context.MODE_PRIVATE).getString(key(definition), "[]") ?: "[]"
             val arr = JSONArray(raw)
-            (0 until arr.length()).mapNotNull { i ->
-                val item = arr.optJSONObject(i) ?: return@mapNotNull null
+            (0 until arr.length()).mapNotNull macroLoop@ { i ->
+                val item = arr.optJSONObject(i) ?: return@macroLoop null
                 val stepsJson = item.optJSONArray("steps") ?: JSONArray()
-                val steps = (0 until stepsJson.length()).mapNotNull { j ->
-                    val step = stepsJson.optJSONObject(j) ?: return@mapNotNull null
+                val steps = (0 until stepsJson.length()).mapNotNull stepLoop@ { j ->
+                    val step = stepsJson.optJSONObject(j) ?: return@stepLoop null
                     val id = step.optString("requestId")
                     val delay = step.optLong("delayMs", 100)
                     if (id.isBlank() || delay !in 0L..60000L) null else V4MacroStep(id, delay)
