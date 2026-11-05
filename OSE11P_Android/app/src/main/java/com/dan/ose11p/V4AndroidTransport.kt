@@ -51,7 +51,7 @@ class V4UsbTransport(
         port.write(bytes, 1000)
     }
 
-    @Synchronized override fun read(timeoutMs: Int): ByteArray {
+    @Synchronized override fun read(timeoutMs: Int, quietTimeMs: Int): ByteArray {
         require(timeoutMs in 1..10000)
         val out = java.io.ByteArrayOutputStream()
         val buffer = ByteArray(256)
@@ -62,7 +62,7 @@ class V4UsbTransport(
             if (n > 0) {
                 out.write(buffer, 0, n)
                 lastByte = System.currentTimeMillis()
-            } else if (out.size() > 0 && System.currentTimeMillis() - lastByte >= 55) {
+            } else if (out.size() > 0 && System.currentTimeMillis() - lastByte >= quietTimeMs) {
                 break
             }
         }
@@ -102,7 +102,7 @@ class V4BluetoothTransport(
         output.write(bytes); output.flush()
     }
 
-    override fun read(timeoutMs: Int): ByteArray = synchronized(lock) {
+    override fun read(timeoutMs: Int, quietTimeMs: Int): ByteArray = synchronized(lock) {
         require(timeoutMs in 1..10000)
         val out = java.io.ByteArrayOutputStream()
         val buffer = ByteArray(256)
@@ -115,7 +115,7 @@ class V4BluetoothTransport(
                 if (n < 0) break
                 if (n > 0) { out.write(buffer, 0, n); lastByte = System.currentTimeMillis() }
             } else {
-                if (out.size() > 0 && System.currentTimeMillis() - lastByte >= 60) break
+                if (out.size() > 0 && System.currentTimeMillis() - lastByte >= quietTimeMs) break
                 Thread.sleep(5)
             }
         }
