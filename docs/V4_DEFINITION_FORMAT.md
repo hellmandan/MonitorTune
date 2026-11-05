@@ -47,7 +47,8 @@ The TX byte below is deliberately a placeholder, not a valid ECM command. It is 
 - `endian`: `BIG` or `LITTLE`.
 - `signed`: `true` or `false`.
 - `scale`, `add`: decoded value = signed/unsigned raw value × scale + add.
-- `units`, `description`: display metadata.\n- Optional `min`, `max`: engineering-unit dial range for the live dashboard; if omitted, the dial uses the full representable raw range after scale/offset.
+- `units`, `description`: display metadata.
+- Optional `min`, `max`: engineering-unit dial range for the live dashboard; if omitted, the dial uses the full representable raw range after scale/offset.
 - Parameter offset is relative to the request's response data start (after `responseOffset`).
 
 ### Request
