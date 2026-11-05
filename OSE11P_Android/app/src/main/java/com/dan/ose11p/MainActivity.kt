@@ -113,6 +113,8 @@ class MainActivity : ComponentActivity() {
     private var v4Status: TextView? = null
     private var v4RawMonitor: TextView? = null
     private var v4ChartView: V4LiveChartView? = null
+    private var v4GaugeContainer: LinearLayout? = null
+    private val v4GaugeViews = linkedMapOf<String, V4MiniGaugeView>()
     private var v4Transport: V4RawTransport? = null
     private val v4Io = Executors.newSingleThreadExecutor()
     private var v4PendingConnect = false
@@ -851,6 +853,10 @@ class MainActivity : ComponentActivity() {
         v4DtcRow.addView(btn("Clear DTCs", Color.parseColor("#B45309")) { clearV4Dtcs() }, lp(0, WRAP, 1f, dp(2)))
         v4DtcRow.addView(btn("Macros", Theme.CARD_HI) { showV4Macros() }, lp(0, WRAP, 1f, dp(2)))
         v4Tab.addView(v4DtcRow, lp(MATCH, WRAP, 0f, dp(5)))
+        val gaugeScroll = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = true }
+        v4GaugeContainer = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL }
+        gaugeScroll.addView(v4GaugeContainer)
+        v4Tab.addView(gaugeScroll, lp(MATCH, dp(125), 0f, dp(3)))
         v4ChartView = V4LiveChartView(this).apply { setBackgroundColor(Theme.CARD) }
         v4Tab.addView(btn("Choose trend parameter", Theme.CARD_HI) { chooseV4TrendParameter() }, lp(MATCH, WRAP, 0f, dp(3)))
         v4Tab.addView(v4ChartView, lp(MATCH, dp(180), 0f, dp(4)))
@@ -1017,7 +1023,10 @@ class MainActivity : ComponentActivity() {
         if (result.values.isNotEmpty()) {
             v4Recorder.add(result.values)
             val elapsed = System.currentTimeMillis()
-            result.values.forEach { v4Chart.add(it.parameter.id, V4ChartPoint(elapsed, it.value)) }
+            result.values.forEach {
+                v4Chart.add(it.parameter.id, V4ChartPoint(elapsed, it.value))
+                v4GaugeViews[it.parameter.id]?.setValue(it.value)
+            }
             if (v4TrendParameterId == null) v4TrendParameterId = result.values.first().parameter.id
             val selected = v4TrendParameterId
             if (selected != null) v4ChartView?.setSeries(def.parameters.firstOrNull { it.id == selected }?.name ?: selected, v4Chart.get(selected))
@@ -1124,6 +1133,15 @@ class MainActivity : ComponentActivity() {
     private fun refreshV4Definition() {
         val d = v4Definition ?: return
         v4Info?.text = "${d.name} | ${d.baud} baud ${d.dataBits}-${d.parity}-${d.stopBits}\nParameters: ${d.parameters.size} | Requests: ${d.requests.size} | Macros: ${d.macros.size}\n${d.warnings.joinToString("\n")}"
+        v4GaugeViews.clear()
+        v4GaugeContainer?.removeAllViews()
+        d.parameters.take(8).forEach { parameter ->
+            val gauge = V4MiniGaugeView(this, parameter).apply { setBackgroundColor(Theme.CARD) }
+            v4GaugeViews[parameter.id] = gauge
+            v4GaugeContainer?.addView(gauge, lp(dp(112), dp(118), 0f, dp(3)))
+        }
+        v4TrendParameterId = d.parameters.firstOrNull()?.id
+        v4TrendParameterId?.let { id -> v4ChartView?.setSeries(d.parameters.first { it.id == id }.name, v4Chart.get(id)) }
     }
 
     private fun showV4Macros() {
