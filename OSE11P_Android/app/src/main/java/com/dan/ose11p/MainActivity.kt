@@ -169,6 +169,7 @@ class MainActivity : ComponentActivity() {
     private var summarySev = Sev.NONE
     private var connectedAt = 0L
     private var bgAnim: ValueAnimator? = null
+    private var policeMap: PoliceMapBackground? = null
 
     // ---- file pickers
     private val openBin = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
@@ -263,6 +264,7 @@ class MainActivity : ComponentActivity() {
         loadAlertPrefs()
         loadAiSettings()
         buildUi()
+        policeMap?.start()
         handler.post(object : Runnable {
             override fun run() {
                 refresh()
@@ -272,6 +274,8 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        policeMap?.destroy()
+        policeMap = null
         super.onDestroy()
         link?.stopFlag = true
         elmLink?.stopFlag = true
@@ -289,13 +293,22 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onPause() {
+        policeMap?.stop()
         super.onPause()
         bgAnim?.pause()
     }
 
     override fun onResume() {
         super.onResume()
+        policeMap?.start()
         bgAnim?.resume()
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == PoliceMapBackground.LOCATION_REQUEST) {
+            policeMap?.onPermissionResult(grantResults.isNotEmpty() && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED)
+        }
     }
 
     private fun loadAlertPrefs() {
@@ -497,6 +510,9 @@ class MainActivity : ComponentActivity() {
         bg.setImageResource(R.drawable.bg_engine)
         bg.scaleType = ImageView.ScaleType.CENTER_CROP
         frame.addView(bg, FrameLayout.LayoutParams(MATCH, MATCH))
+        // Live police and speed-camera map, layered between the dash photo and dark scrim.
+        policeMap = PoliceMapBackground(this)
+        frame.addView(policeMap, FrameLayout.LayoutParams(MATCH, MATCH))
         // slow drifting zoom on the engine-bay photo
         val kb = ValueAnimator.ofFloat(1.04f, 1.14f)
         kb.duration = 40000
