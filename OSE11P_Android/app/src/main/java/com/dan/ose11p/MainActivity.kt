@@ -306,8 +306,13 @@ class MainActivity : ComponentActivity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        val granted = grantResults.isNotEmpty() &&
+            grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED
         if (requestCode == PoliceMapBackground.LOCATION_REQUEST) {
-            policeMap?.onPermissionResult(grantResults.isNotEmpty() && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED)
+            policeMap?.onPermissionResult(granted)
+        }
+        if ((requestCode == 712 || requestCode == 713) && granted) {
+            Toast.makeText(this, "Bluetooth permission granted. Tap Connect again and select the paired adapter.", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -1448,12 +1453,7 @@ class MainActivity : ComponentActivity() {
             .setNegativeButton("Cancel", null).show()
     }
 
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if ((requestCode == 712 || requestCode == 713) && grantResults.isNotEmpty() && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
-            Toast.makeText(this, "Bluetooth permission granted. Tap Connect again and select the paired adapter.", Toast.LENGTH_LONG).show()
-        }
-    }
+
 
     private fun startElmLink(bt: BluetoothAdapter, device: BluetoothDevice) {
         if (elmLink != null || link != null) return

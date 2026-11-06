@@ -91,10 +91,16 @@ class PoliceMapBackground(private val activity: Activity) : FrameLayout(activity
     private fun startGps() {
         try {
             lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1500L, 0f, this, Looper.getMainLooper())
-            lm.getLastKnownLocation(LocationManager.GPS_PROVIDER)?.let { onLocationChanged(it) }
         } catch (_: Exception) {
-            lm.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)?.let { onLocationChanged(it) }
+            try {
+                lm.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 3000L, 0f, this, Looper.getMainLooper())
+            } catch (_: Exception) { }
         }
+        val initial = try {
+            lm.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+                ?: lm.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+        } catch (_: Exception) { null }
+        initial?.let { onLocationChanged(it) }
     }
 
     fun stop() {
@@ -162,7 +168,12 @@ class PoliceMapBackground(private val activity: Activity) : FrameLayout(activity
                     web.evaluateJavascript("setStatus('${out.length()} community police reports nearby • refresh 15s')", null)
                 }
             } catch (e: Exception) {
-                web.post { web.evaluateJavascript("setStatus('Police reports temporarily unavailable')", null) }
+                val detail = (e.message ?: e.javaClass.simpleName)
+                    .replace(Regex("[^A-Za-z0-9 _-]"), "")
+                    .take(48)
+                web.post {
+                    web.evaluateJavascript("setStatus('Police feed error: $detail')", null)
+                }
             } finally { busy.set(false) }
         }
     }
