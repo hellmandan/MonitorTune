@@ -11,8 +11,8 @@ android {
         applicationId = "com.dan.ose11p"
         minSdk = 24
         targetSdk = 34
-        versionCode = 10
-        versionName = "5.1"
+        versionCode = 11
+        versionName = "5.3"
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

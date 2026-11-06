@@ -1,0 +1,35 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<style>
+html,body,#map{height:100%;width:100%;margin:0;background:transparent;overflow:hidden}
+.leaflet-container{background:transparent}
+.leaflet-tile{opacity:.58;filter:brightness(.72) saturate(.72)}
+.leaflet-control-attribution{display:none}
+#status{position:absolute;z-index:999;top:4px;left:7px;padding:4px 7px;border-radius:5px;background:rgba(3,10,20,.62);color:#cbd5e1;font:10px Arial,sans-serif;pointer-events:none}
+.me{font-size:24px;line-height:24px;text-align:center;color:#38bdf8;text-shadow:0 0 4px #000,0 0 4px #000}
+</style></head><body><div id="status">Police map loading…</div><div id="map"></div>
+<script>
+var map=L.map('map',{zoomControl:false,attributionControl:false,preferCanvas:true,zoomAnimation:false}).setView([-31.95,115.86],12);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,opacity:.62}).addTo(map);
+var police=L.layerGroup().addTo(map), cameras=L.layerGroup().addTo(map), marker=null, first=true;
+function esc(s){return String(s||'').replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function setStatus(s){document.getElementById('status').textContent=s}
+function setPolice(a){police.clearLayers();var now=Date.now();a.forEach(function(p){
+ var age=p.ts?Math.max(0,Math.round((now-p.ts)/60000))+' min ago':'';
+ L.circleMarker([p.lat,p.lon],{radius:7,color:'#fff',weight:1.5,fillColor:'#ef4444',fillOpacity:.95})
+ .bindPopup('<b>Police report</b><br>'+esc(p.street)+' '+esc(p.city)+'<br>'+age+'<br><small>Community report</small>').addTo(police)
+})}
+function setCams(a){cameras.clearLayers();a.forEach(function(c){
+ L.circleMarker([c.lat,c.lon],{radius:6,color:'#fff',weight:1.5,fillColor:'#c084fc',fillOpacity:1})
+ .bindPopup('<b>Speed camera</b>'+(c.ms?'<br>Limit '+esc(c.ms):'')+'<br><small>OpenStreetMap data</small>').addTo(cameras)
+})}
+function setMe(lat,lon,hdg,acc){
+ var h=hdg>=0?'<div class="me" style="transform:rotate('+hdg+'deg)">▲</div>':'<div class="me">●</div>';
+ var icon=L.divIcon({className:'',html:h,iconSize:[26,26],iconAnchor:[13,13]});
+ if(!marker){marker=L.marker([lat,lon],{icon:icon,interactive:false,zIndexOffset:1000}).addTo(map)}
+ else{marker.setLatLng([lat,lon]);marker.setIcon(icon)}
+ if(first){map.setView([lat,lon],14);first=false}else{map.panTo([lat,lon],{animate:false})}
+}
+</script></body></html>
