@@ -27,8 +27,8 @@ import kotlin.math.cos
 
 /**
  * Transparent live traffic-awareness map placed behind the MonitorTune dash.
- * Police locations are community reports supplied by Waze; speed-camera locations
- * are mapped OpenStreetMap data. Neither source guarantees completeness or accuracy.
+ * Police stations and speed-camera locations are mapped OpenStreetMap data.
+ * Police stations are fixed facilities, not live patrol or enforcement locations.
  */
 class PoliceMapBackground(private val activity: Activity) : FrameLayout(activity), LocationListener {
     private val handler = Handler(Looper.getMainLooper())
@@ -42,7 +42,6 @@ class PoliceMapBackground(private val activity: Activity) : FrameLayout(activity
 
     private val refresh = object : Runnable {
         override fun run() {
-            fetchPolice()
             if (System.currentTimeMillis() - lastCameraFetch > 6 * 60 * 60 * 1000L) fetchCameras()
             handler.postDelayed(this, 15_000L)
         }
@@ -123,7 +122,6 @@ class PoliceMapBackground(private val activity: Activity) : FrameLayout(activity
         val bearing = if (location.hasBearing() && location.hasSpeed() && location.speed > 2f) location.bearing.toDouble() else -1.0
         val js = "setMe(${location.latitude},${location.longitude},$bearing,${location.accuracy})"
         web.post { web.evaluateJavascript(js, null) }
-        fetchPolice()
         if (System.currentTimeMillis() - lastCameraFetch > 6 * 60 * 60 * 1000L) fetchCameras()
     }
 
@@ -132,50 +130,6 @@ class PoliceMapBackground(private val activity: Activity) : FrameLayout(activity
     override fun onProviderEnabled(provider: String) {}
     override fun onProviderDisabled(provider: String) {
         web.post { web.evaluateJavascript("setStatus('GPS disabled')", null) }
-    }
-
-    private fun fetchPolice() {
-        val loc = lastLocation ?: return
-        if (!busy.compareAndSet(false, true)) return
-        val lat = loc.latitude
-        val lon = loc.longitude
-        io.execute {
-            try {
-                val halfLat = 0.065
-                val halfLon = halfLat / cos(Math.toRadians(lat)).coerceAtLeast(0.2)
-                val url = "https://www.waze.com/live-map/api/georss?env=row&types=alerts&ma=200&mj=0&mu=0" +
-                    "&left=${lon-halfLon}&right=${lon+halfLon}&top=${lat+halfLat}&bottom=${lat-halfLat}"
-                val body = get(url, 15_000)
-                val alerts = JSONObject(body).optJSONArray("alerts") ?: JSONArray()
-                val out = JSONArray()
-                for (i in 0 until alerts.length()) {
-                    val a = alerts.optJSONObject(i) ?: continue
-                    if (a.optString("type") != "POLICE") continue
-                    val p = a.optJSONObject("location") ?: continue
-                    val y = p.optDouble("y", Double.NaN)
-                    val x = p.optDouble("x", Double.NaN)
-                    if (y.isNaN() || x.isNaN()) continue
-                    out.put(JSONObject()
-                        .put("id", a.optString("uuid", a.optString("id", "$y,$x")))
-                        .put("lat", y).put("lon", x)
-                        .put("street", a.optString("street"))
-                        .put("city", a.optString("city"))
-                        .put("sub", a.optString("subtype"))
-                        .put("ts", a.optLong("pubMillis", 0)))
-                }
-                web.post {
-                    web.evaluateJavascript("setPolice($out)", null)
-                    web.evaluateJavascript("setStatus('${out.length()} community police reports nearby • refresh 15s')", null)
-                }
-            } catch (e: Exception) {
-                val detail = (e.message ?: e.javaClass.simpleName)
-                    .replace(Regex("[^A-Za-z0-9 _-]"), "")
-                    .take(48)
-                web.post {
-                    web.evaluateJavascript("setStatus('Police feed error: $detail')", null)
-                }
-            } finally { busy.set(false) }
-        }
     }
 
     private fun fetchCameras() {
@@ -189,7 +143,7 @@ class PoliceMapBackground(private val activity: Activity) : FrameLayout(activity
                 val west = lon - 0.12 / cos(Math.toRadians(lat)).coerceAtLeast(0.2)
                 val east = lon + 0.12 / cos(Math.toRadians(lat)).coerceAtLeast(0.2)
                 val bbox = "($south,$west,$north,$east)"
-                val query = "[out:json][timeout:25];node[\"highway\"=\"speed_camera\"]$bbox;out body;"
+                val query = "[out:json][timeout:25];(node[\"highway\"=\"speed_camera\"]$bbox;nwr[\"amenity\"=\"police\"]$bbox;);out center tags;"
                 val url = URL("https://overpass-api.de/api/interpreter")
                 val c = url.openConnection() as HttpURLConnection
                 c.requestMethod = "POST"
@@ -202,34 +156,38 @@ class PoliceMapBackground(private val activity: Activity) : FrameLayout(activity
                     c.outputStream.use { it.write(("data=" + URLEncoder.encode(query, "UTF-8")).toByteArray()) }
                     if (c.responseCode != 200) throw IllegalStateException("Overpass HTTP ${c.responseCode}")
                     val els = JSONObject(c.inputStream.bufferedReader().readText()).optJSONArray("elements") ?: JSONArray()
-                    val out = JSONArray()
+                    val cams = JSONArray()
+                    val stations = JSONArray()
                     for (i in 0 until els.length()) {
-                        val e = els.optJSONObject(i) ?: continue
-                        val tags = e.optJSONObject("tags")
-                        out.put(JSONObject().put("id", e.optString("id"))
-                            .put("lat", e.optDouble("lat")).put("lon", e.optDouble("lon"))
-                            .put("ms", tags?.optString("maxspeed").orEmpty()))
+                        val element = els.optJSONObject(i) ?: continue
+                        val tags = element.optJSONObject("tags") ?: JSONObject()
+                        val center = element.optJSONObject("center")
+                        val latitude = if (element.has("lat")) element.optDouble("lat", Double.NaN) else center?.optDouble("lat", Double.NaN) ?: Double.NaN
+                        val longitude = if (element.has("lon")) element.optDouble("lon", Double.NaN) else center?.optDouble("lon", Double.NaN) ?: Double.NaN
+                        if (latitude.isNaN() || longitude.isNaN()) continue
+                        if (tags.optString("highway") == "speed_camera") {
+                            cams.put(JSONObject().put("id", element.optString("id"))
+                                .put("lat", latitude).put("lon", longitude)
+                                .put("ms", tags.optString("maxspeed")))
+                        }
+                        if (tags.optString("amenity") == "police") {
+                            stations.put(JSONObject().put("id", element.optString("id"))
+                                .put("lat", latitude).put("lon", longitude)
+                                .put("name", tags.optString("name", "Police station"))
+                                .put("operator", tags.optString("operator")))
+                        }
                     }
                     lastCameraFetch = System.currentTimeMillis()
-                    web.post { web.evaluateJavascript("setCams($out)", null) }
+                    web.post {
+                        web.evaluateJavascript("setCams($cams)", null)
+                        web.evaluateJavascript("setStations($stations)", null)
+                        web.evaluateJavascript("setStatus('Police stations (not live patrols) • ${stations.length()} mapped • ${cams.length()} speed cameras')", null)
+                    }
                 } finally { c.disconnect() }
             } catch (_: Exception) {
                 // Keep the map and previously loaded police reports usable if camera data is offline.
             }
         }
-    }
-
-    private fun get(address: String, timeout: Int): String {
-        val c = URL(address).openConnection() as HttpURLConnection
-        c.connectTimeout = timeout
-        c.readTimeout = timeout
-        c.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/124 Mobile Safari/537.36")
-        c.setRequestProperty("Referer", "https://www.waze.com/live-map")
-        c.setRequestProperty("Accept", "application/json")
-        return try {
-            if (c.responseCode != 200) throw IllegalStateException("HTTP ${c.responseCode}")
-            c.inputStream.bufferedReader().use { it.readText() }
-        } finally { c.disconnect() }
     }
 
     companion object { const val LOCATION_REQUEST = 5317 }

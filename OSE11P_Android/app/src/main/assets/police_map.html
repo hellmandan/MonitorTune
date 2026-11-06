@@ -13,13 +13,12 @@ html,body,#map{height:100%;width:100%;margin:0;background:transparent;overflow:h
 <script>
 var map=L.map('map',{zoomControl:false,attributionControl:false,preferCanvas:true,zoomAnimation:false}).setView([-31.95,115.86],12);
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,opacity:.62}).addTo(map);
-var police=L.layerGroup().addTo(map), cameras=L.layerGroup().addTo(map), marker=null, first=true;
+var stations=L.layerGroup().addTo(map), cameras=L.layerGroup().addTo(map), marker=null, first=true;
 function esc(s){return String(s||'').replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
 function setStatus(s){document.getElementById('status').textContent=s}
-function setPolice(a){police.clearLayers();var now=Date.now();a.forEach(function(p){
- var age=p.ts?Math.max(0,Math.round((now-p.ts)/60000))+' min ago':'';
- L.circleMarker([p.lat,p.lon],{radius:7,color:'#fff',weight:1.5,fillColor:'#ef4444',fillOpacity:.95})
- .bindPopup('<b>Police report</b><br>'+esc(p.street)+' '+esc(p.city)+'<br>'+age+'<br><small>Community report</small>').addTo(police)
+function setStations(a){stations.clearLayers();a.forEach(function(p){
+ L.circleMarker([p.lat,p.lon],{radius:7,color:'#fff',weight:1.5,fillColor:'#2563eb',fillOpacity:.95})
+ .bindPopup('<b>'+esc(p.name||'Police station')+'</b>'+(p.operator?'<br>'+esc(p.operator):'')+'<br><small>Fixed facility • not a live patrol location</small>').addTo(stations)
 })}
 function setCams(a){cameras.clearLayers();a.forEach(function(c){
  L.circleMarker([c.lat,c.lon],{radius:6,color:'#fff',weight:1.5,fillColor:'#c084fc',fillOpacity:1})
