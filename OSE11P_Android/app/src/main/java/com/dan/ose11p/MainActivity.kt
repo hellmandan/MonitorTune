@@ -172,7 +172,6 @@ class MainActivity : ComponentActivity() {
     private var bgAnim: ValueAnimator? = null
     private var policeMap: PoliceMapBackground? = null
     private var voiceCopilot: VoiceCopilot? = null
-    private var voiceStatusView: TextView? = null
 
     // ---- file pickers
     private val openBin = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
@@ -267,6 +266,7 @@ class MainActivity : ComponentActivity() {
         loadAlertPrefs()
         loadAiSettings()
         buildUi()
+        activateHandsFreeVoice(requestPermissionIfNeeded = true)
         policeMap?.start()
         handler.post(object : Runnable {
             override fun run() {
@@ -298,6 +298,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onPause() {
+        voiceCopilot?.pauseListening()
         policeMap?.stop()
         super.onPause()
         bgAnim?.pause()
@@ -307,6 +308,19 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         policeMap?.start()
         bgAnim?.resume()
+        activateHandsFreeVoice(requestPermissionIfNeeded = false)
+    }
+
+    private fun activateHandsFreeVoice(requestPermissionIfNeeded: Boolean) {
+        if (Build.VERSION.SDK_INT >= 23 &&
+            checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            if (requestPermissionIfNeeded) {
+                requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), 714)
+            }
+            return
+        }
+        if (voiceCopilot?.isWakeMode() != true) voiceCopilot?.setWakeMode(true)
+        else voiceCopilot?.resumeListening()
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
@@ -317,8 +331,8 @@ class MainActivity : ComponentActivity() {
             policeMap?.onPermissionResult(granted)
         }
         if (requestCode == 714) {
-            if (granted) voiceCopilot?.startListening()
-            else Toast.makeText(this, "Microphone permission is required for voice gauge queries.", Toast.LENGTH_LONG).show()
+            if (granted) voiceCopilot?.setWakeMode(true)
+            else Toast.makeText(this, "Allow microphone access to use hands-free voice gauge queries.", Toast.LENGTH_LONG).show()
         }
         if ((requestCode == 712 || requestCode == 713) && granted) {
             Toast.makeText(this, "Bluetooth permission granted. Tap Connect again and select the paired adapter.", Toast.LENGTH_LONG).show()
@@ -998,34 +1012,8 @@ class MainActivity : ComponentActivity() {
         root.addView(holder, lp(MATCH, 0, 1f, 0))
         frame.addView(banner, bannerLp)
         setContentView(frame)
-        voiceCopilot = VoiceCopilot(this, ::answerVoiceQuestion) { state ->
-            runOnUiThread { voiceStatusView?.text = state }
-        }
-        val voicePanel = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = android.view.Gravity.CENTER
-            background = rounded(Color.argb(220, 12, 18, 28), 16)
-            setPadding(dp(10), dp(7), dp(10), dp(7))
-        }
-        voiceStatusView = label("VOICE READY • TAP TO ASK", 10f, Theme.TEXT).apply {
-            gravity = android.view.Gravity.CENTER
-        }
-        val askVoice = btn("🎙 ASK MONITORTUNE", Theme.CARD_HI) {
-            if (Build.VERSION.SDK_INT >= 23 && checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), 714)
-            } else voiceCopilot?.startListening()
-        }
-        voicePanel.addView(voiceStatusView)
-        voicePanel.addView(askVoice, lp(WRAP, WRAP, 0f, dp(2)))
-        voicePanel.setOnLongClickListener {
-            val enable = !(voiceCopilot?.isWakeMode() ?: false)
-            voiceCopilot?.setWakeMode(enable)
-            voiceStatusView?.text = if (enable) "WAKE MODE ON • SAY HEY MONITORTUNE" else "VOICE READY"
-            true
-        }
-        val voiceLp = FrameLayout.LayoutParams(WRAP, WRAP, android.view.Gravity.BOTTOM or android.view.Gravity.END)
-        voiceLp.setMargins(0, 0, dp(12), dp(12))
-        frame.addView(voicePanel, voiceLp)
+        voiceCopilot = VoiceCopilot(this, ::answerVoiceQuestion) { _ -> }
+
         selectTab(0) // VE workspace is the only screen
         root.alpha = 0f
         root.animate().alpha(1f).setDuration(500).start()
