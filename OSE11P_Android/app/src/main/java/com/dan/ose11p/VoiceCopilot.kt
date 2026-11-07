@@ -108,9 +108,12 @@ class VoiceCopilot(
             val spoken = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
             val normalized = spoken.trim()
             if (normalized.isNotBlank()) {
-                val command = normalized.replace(Regex("(?i)^hey\\s+monitor\\s*tune[, ]*"), "")
-                val reply = answer(command)
-                speak(reply)
+                val wakeMatch = normalized.contains("hey monitor tune", ignoreCase = true)
+                if (!wakeMode || wakeMatch) {
+                    val command = normalized.replace(Regex("(?i)^hey\\s+monitor\\s*tune[, ]*"), "")
+                    val reply = if (command.isBlank()) "I am listening. Which gauge would you like?" else answer(command)
+                    speak(reply)
+                }
             }
             if (wakeMode && !destroyed) {
                 android.os.Handler(activity.mainLooper).postDelayed({ if (wakeMode && !destroyed) startListening() }, 700)
