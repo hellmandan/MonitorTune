@@ -7,6 +7,7 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import android.speech.tts.Voice
 import java.util.Locale
 
@@ -25,6 +26,7 @@ class VoiceCopilot(
     private var wakeMode = false
     private var listening = false
     private var destroyed = false
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
 
     init {
         tts = TextToSpeech(activity, this)
@@ -48,6 +50,20 @@ class VoiceCopilot(
         engine.setPitch(1.08f)
         engine.setSpeechRate(0.94f)
         ready = true
+        engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+            override fun onStart(utteranceId: String?) {}
+            override fun onDone(utteranceId: String?) {
+                mainHandler.post {
+                    if (wakeMode && !destroyed) {
+                        mainHandler.postDelayed({ if (wakeMode && !destroyed) startListening() }, 250)
+                    }
+                }
+            }
+            @Deprecated("Deprecated in Java")
+            override fun onError(utteranceId: String?) {
+                mainHandler.post { if (wakeMode && !destroyed) startListening() }
+            }
+        })
     }
 
     fun startListening() {
@@ -71,7 +87,7 @@ class VoiceCopilot(
         }
         try {
             listening = true
-            onState(if (wakeMode) "WAKE LISTENING" else "LISTENING…")
+            onState(if (wakeMode) "LISTENING FOR “BABE”" else "LISTENING…")
             recognizer?.startListening(intent)
         } catch (_: Exception) {
             listening = false
@@ -90,8 +106,18 @@ class VoiceCopilot(
 
     fun isWakeMode() = wakeMode
 
+    /** Stop microphone capture while the activity is not visible, retaining hands-free mode. */
+    fun pauseListening() {
+        listening = false
+        try { recognizer?.cancel() } catch (_: Exception) {}
+    }
+
+    fun resumeListening() {
+        if (wakeMode && !destroyed) startListening()
+    }
+
     private val listener = object : RecognitionListener {
-        override fun onReadyForSpeech(params: Bundle?) { onState(if (wakeMode) "SAY HEY MONITORTUNE" else "LISTENING…") }
+        override fun onReadyForSpeech(params: Bundle?) { onState(if (wakeMode) "SAY “BABE, WHAT’S THE RPM?”" else "LISTENING…") }
         override fun onBeginningOfSpeech() { onState("HEARING YOU…") }
         override fun onRmsChanged(rmsdB: Float) {}
         override fun onBufferReceived(buffer: ByteArray?) {}
@@ -108,15 +134,17 @@ class VoiceCopilot(
             val spoken = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
             val normalized = spoken.trim()
             if (normalized.isNotBlank()) {
-                val wakeMatch = normalized.contains("hey monitor tune", ignoreCase = true)
+                val wakeMatch = Regex("(?i)\\bbabe\\b").containsMatchIn(normalized)
                 if (!wakeMode || wakeMatch) {
-                    val command = normalized.replace(Regex("(?i)^hey\\s+monitor\\s*tune[, ]*"), "")
-                    val reply = if (command.isBlank()) "I am listening. Which gauge would you like?" else answer(command)
+                    val command = normalized.replace(Regex("(?i)\\bbabe\\b[, ]*"), "").trim()
+                    val reply = if (command.isBlank()) "I'm listening, darling. What would you like to know?" else answer(command)
                     speak(reply)
+                    if (!wakeMode) onState("VOICE READY")
+                    return
                 }
             }
             if (wakeMode && !destroyed) {
-                android.os.Handler(activity.mainLooper).postDelayed({ if (wakeMode && !destroyed) startListening() }, 700)
+                mainHandler.postDelayed({ if (wakeMode && !destroyed) startListening() }, 500)
             } else onState("VOICE READY")
         }
         override fun onPartialResults(partialResults: Bundle?) {}
@@ -130,9 +158,8 @@ class VoiceCopilot(
 
     fun stop() {
         wakeMode = false
-        listening = false
-        try { recognizer?.cancel() } catch (_: Exception) {}
-        onState("VOICE READY")
+        pauseListening()
+        onState("VOICE OFF")
     }
 
     fun destroy() {
