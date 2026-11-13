@@ -2,7 +2,7 @@ import sys, math, struct, time, json, threading, queue
 from pathlib import Path
 import serial
 from serial.tools import list_ports
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, QThread, Signal
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import (QApplication,QMainWindow,QWidget,QVBoxLayout,QHBoxLayout,
  QLabel,QPushButton,QComboBox,QTabWidget,QGridLayout,QTableWidget,QTableWidgetItem,
@@ -38,6 +38,78 @@ def find_frame(buf):
             return f,i+FRAME_LEN
     return None,max(0,len(buf)-FRAME_LEN+1)
 
+class AldlWorker(QThread):
+    sample = Signal(dict)
+    status = Signal(str)
+    failed = Signal(str)
+    def __init__(self, port):
+        super().__init__()
+        self.port = port
+        self.running = True
+    @staticmethod
+    def extract(buf):
+        while len(buf) >= FRAME_LEN:
+            start = buf.find(bytes([0xF4, 0x8E, 0x01]))
+            if start < 0:
+                del buf[:-2]
+                return None
+            if start:
+                del buf[:start]
+            if len(buf) < FRAME_LEN:
+                return None
+            candidate = bytes(buf[:FRAME_LEN])
+            if sum(candidate) & 0xFF == 0:
+                del buf[:FRAME_LEN]
+                return candidate
+            del buf[0]
+        return None
+    def stop(self):
+        self.running = False
+    def run(self):
+        buf = bytearray()
+        misses = 0
+        try:
+            self.port.reset_input_buffer()
+            self.port.write(CHATTER_OFF)
+            self.msleep(150)
+            self.status.emit('ALDL LINK OPEN — POLLING MODE 1 MESSAGE 0')
+            while self.running:
+                self.port.reset_input_buffer()
+                buf.clear()
+                self.port.write(REQ_ENGINE)
+                deadline = time.monotonic() + 0.40
+                frame = None
+                while self.running and time.monotonic() < deadline:
+                    chunk = self.port.read(64)
+                    if chunk:
+                        buf.extend(chunk)
+                        if len(buf) > 1024:
+                            del buf[:-FRAME_LEN]
+                        frame = self.extract(buf)
+                        if frame is not None:
+                            break
+                if frame is not None:
+                    misses = 0
+                    self.sample.emit(decode_frame(frame))
+                    self.status.emit('ECU DATA VALID')
+                else:
+                    misses += 1
+                    self.status.emit('NO VALID FRAME — RETRYING')
+                    if misses >= 5:
+                        self.port.reset_input_buffer()
+                        buf.clear()
+                        self.port.write(CHATTER_OFF)
+                        self.msleep(150)
+                        misses = 0
+                        self.status.emit('ALDL RESYNC — CHATTER OFF')
+        except Exception as ex:
+            self.failed.emit(str(ex))
+        finally:
+            try:
+                self.port.write(CHATTER_ON)
+            except Exception:
+                pass
+            self.status.emit('ALDL POLLING STOPPED')
 class EnginePanel(QWebEngineView):
     def __init__(self):
         super().__init__()
@@ -66,7 +138,7 @@ class Gauge(QGroupBox):
 class Main(QMainWindow):
     def __init__(self):
         super().__init__(); self.setWindowTitle('MonitorTune | Buick 3800 Turbo'); self.resize(1500,900)
-        self.ser=None; self.buf=bytearray(); self.data={}; self.bin=None
+        self.ser=None; self.worker=None; self.last_sample_time=0.0; self.data={}; self.bin=None
         self.next_request=0.0; self.misses=0; self.alert_limits={'boost':28.0,'lean_afr':12.0,'coolant':105.0,'knock':2.0}; self.last_alert=''; self.voice_queue=queue.Queue()
         root=QWidget(); self.setCentralWidget(root); outer=QVBoxLayout(root)
         bar=QHBoxLayout(); self.port=QComboBox(); self.refresh_ports()
@@ -80,24 +152,54 @@ class Main(QMainWindow):
         self.alert_bar=QLabel('NO ACTIVE WARNINGS'); self.alert_bar.setAlignment(Qt.AlignCenter); self.alert_bar.setStyleSheet('background:#10251d;color:#76e6a5;font-weight:bold;padding:7px'); outer.addWidget(self.alert_bar)
         self.alert_settings=QPushButton('Alert limits'); self.alert_settings.clicked.connect(self.configure_alerts); bar.addWidget(self.alert_settings)
         threading.Thread(target=self.speech_worker,daemon=True).start()
-        self.timer=QTimer(self); self.timer.timeout.connect(self.poll); self.timer.start(25)
+        self.timer=QTimer(self); self.timer.timeout.connect(self.poll); self.timer.start(100)
         self.anim=QTimer(self); self.anim.timeout.connect(lambda:self.engine.update()); self.anim.start(40)
     def refresh_ports(self):
         self.port.clear()
         for x in list_ports.comports(): self.port.addItem(f'{x.device} — {x.description}',x.device)
     def toggle_serial(self):
-        if self.ser:
-            try:self.ser.write(CHATTER_ON)
-            except Exception:pass
-            self.ser.close(); self.ser=None; self.buf.clear(); self.connect_btn.setText('Connect ALDL'); self.link.setText('ECU DISCONNECTED'); self.link.setStyleSheet('color:#ff6868;font-weight:bold'); return
+        if self.worker and self.worker.isRunning():
+            self.worker.stop(); self.worker.wait(1500)
+            if self.ser:
+                self.ser.close(); self.ser=None
+            self.worker=None; self.connect_btn.setText('Connect ALDL')
+            self.link.setText('ECU DISCONNECTED'); self.link.setStyleSheet('color:#ff6868;font-weight:bold')
+            return
         dev=self.port.currentData()
-        if not dev: return
+        if not dev:return
         try:
-            self.ser=serial.Serial(dev,BAUD,bytesize=8,parity='N',stopbits=1,timeout=0)
-            self.ser.reset_input_buffer(); self.ser.write(CHATTER_OFF); self.next_request=time.monotonic()+0.15; self.misses=0
-            self.connect_btn.setText('Disconnect'); self.link.setText('ALDL LINK OPEN — WAITING FOR VALID FRAME')
-            self.link.setStyleSheet('color:#f4c15d;font-weight:bold')
-        except Exception as ex: QMessageBox.critical(self,'ALDL connection',str(ex))
+            self.ser=serial.Serial(dev,BAUD,bytesize=8,parity='N',stopbits=1,timeout=0.05,write_timeout=0.25)
+            self.worker=AldlWorker(self.ser)
+            self.worker.sample.connect(self.on_sample)
+            self.worker.status.connect(self.on_link_status)
+            self.worker.failed.connect(self.on_link_error)
+            self.worker.finished.connect(self.on_worker_finished)
+            self.worker.start(); self.connect_btn.setText('Disconnect')
+            self.link.setText('ALDL STARTING'); self.link.setStyleSheet('color:#f4c15d;font-weight:bold')
+        except Exception as ex:
+            if self.ser:
+                try:self.ser.close()
+                except Exception:pass
+            self.ser=None; QMessageBox.critical(self,'ALDL connection',str(ex))
+    def on_link_status(self,message):
+        if message != 'ECU DATA VALID':
+            self.link.setText(message); self.link.setStyleSheet('color:#f4c15d;font-weight:bold')
+    def on_link_error(self,message):
+        self.link.setText('ALDL ERROR: '+message); self.link.setStyleSheet('color:#ff6868;font-weight:bold')
+    def on_worker_finished(self):
+        if self.worker and not self.worker.isRunning():
+            if self.ser:
+                try:self.ser.close()
+                except Exception:pass
+                self.ser=None
+            self.connect_btn.setText('Connect ALDL')
+    def on_sample(self,d):
+        self.data=d; self.last_sample_time=time.monotonic(); self.engine.update_data(d)
+        calc=(d['afr']/d['cmd_afr']*d['ve']) if d['cmd_afr']>0 and 8.0<=d['afr']<=22.0 else None
+        vals={'RPM':d['rpm'],'BOOST':d['boost'],'AFR':d['afr'] if 8.0<=d['afr']<=22.0 else None,'COOLANT':d['coolant'],'MAP':d['map'],'IGNITION':d['spark'],'KNOCK RETARD':d['knock'],'TPS':d['tps'],'VE RAW':d['ve'],'CALC VE':calc,'SPEED':d['speed'],'IAC':None}
+        for k,v in vals.items():self.gauges[k].set_value(v)
+        self.link.setText('ECU DATA VALID'); self.link.setStyleSheet('color:#65e6a4;font-weight:bold')
+        self.check_alerts(d)
     def engine_tab(self):
         page=QWidget(); layout=QHBoxLayout(page); self.engine=EnginePanel(); layout.addWidget(self.engine,3)
         grid=QGridLayout(); layout.addLayout(grid,2)
@@ -163,29 +265,14 @@ class Main(QMainWindow):
         if p:
             Path(p).write_bytes(out); QMessageBox.information(self,'Saved','Modified BIN copy saved. No ECU flash/write is performed.')
     def poll(self):
-        if not self.ser:return
-        try:
-            n=self.ser.in_waiting
-            if n:self.buf.extend(self.ser.read(n))
-            f,used=find_frame(self.buf)
-            if f:
-                self.buf=self.buf[used:]; self.misses=0
-                self.data=decode_frame(f); self.engine.update_data(self.data); d=self.data
-                calc=(d['afr']/d['cmd_afr']*d['ve']) if d['cmd_afr']>0 and 8.0<=d['afr']<=22.0 else None
-                vals={'RPM':d['rpm'],'BOOST':d['boost'],'AFR':d['afr'] if 8.0<=d['afr']<=22.0 else None,'COOLANT':d['coolant'],'MAP':d['map'],
-                  'IGNITION':d['spark'],'KNOCK RETARD':d['knock'],'TPS':d['tps'],'VE RAW':d['ve'],'CALC VE':calc,'SPEED':d['speed'],'IAC':None}
-                for k,v in vals.items(): self.gauges[k].set_value(v)
-                self.link.setText('ECU DATA VALID'); self.link.setStyleSheet('color:#65e6a4;font-weight:bold')
-                self.check_alerts(d); self.next_request=time.monotonic()+0.05
-            elif time.monotonic()>=self.next_request:
-                self.ser.reset_input_buffer(); self.buf.clear(); self.ser.write(REQ_ENGINE)
-                self.next_request=time.monotonic()+0.40; self.misses+=1
-                if self.misses>=5:
-                    self.ser.reset_input_buffer(); self.ser.write(CHATTER_OFF); self.next_request=time.monotonic()+0.15; self.misses=0
-                    self.link.setText('ALDL RESYNC — REQUESTING MODE 1 MESSAGE 0'); self.link.setStyleSheet('color:#f4c15d;font-weight:bold')
-        except Exception as ex:
-            self.link.setText('ALDL ERROR: '+str(ex)); self.link.setStyleSheet('color:#ff6868;font-weight:bold')
+        if self.last_sample_time and time.monotonic()-self.last_sample_time>1.5:
+            self.link.setText('ALDL SIGNAL STALE — HOLDING LAST VALID SAMPLE')
+            self.link.setStyleSheet('color:#f4c15d;font-weight:bold')
+            self.alert_bar.setText('TELEMETRY STALE — SAFETY ALERTS PAUSED')
+            self.alert_bar.setStyleSheet('background:#463615;color:#ffe0a0;font-weight:bold;padding:7px')
+            self.last_alert=''
     def check_alerts(self,d):
+        if not self.last_sample_time or time.monotonic()-self.last_sample_time>1.5:return
         issues=[]
         if d['boost']>=self.alert_limits['boost']: issues.append(f"OVERBOOST {d['boost']:.1f} PSI")
         if d['boost']>0 and 8.0<=d['afr']<=22.0 and d['afr']>=self.alert_limits['lean_afr']: issues.append(f"LEAN AFR UNDER BOOST {d['afr']:.1f}")
@@ -209,10 +296,10 @@ class Main(QMainWindow):
             value,ok=QInputDialog.getDouble(self,'Alert threshold',label,self.alert_limits[key],0.1,300.0,1)
             if ok:self.alert_limits[key]=value
     def closeEvent(self,e):
+        if self.worker and self.worker.isRunning():self.worker.stop(); self.worker.wait(1500)
         if self.ser:
-            try:self.ser.write(CHATTER_ON)
+            try:self.ser.close()
             except Exception:pass
-            self.ser.close()
         e.accept()
 
 if __name__=='__main__':
