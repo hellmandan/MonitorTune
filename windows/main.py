@@ -1,4 +1,4 @@
-import sys, math, struct, time, json
+import sys, math, struct, time, json, threading, queue
 from pathlib import Path
 import serial
 from serial.tools import list_ports
@@ -6,9 +6,12 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import (QApplication,QMainWindow,QWidget,QVBoxLayout,QHBoxLayout,
  QLabel,QPushButton,QComboBox,QTabWidget,QGridLayout,QTableWidget,QTableWidgetItem,
- QFileDialog,QMessageBox,QGroupBox,QHeaderView,QStatusBar)
+ QFileDialog,QMessageBox,QGroupBox,QHeaderView,QStatusBar,QInputDialog)
 
 BAUD=8192; FRAME_LEN=60
+REQ_ENGINE=bytes([0xF4,0x57,0x01,0x00,0xB4])
+CHATTER_OFF=bytes([0xF4,0x56,0x08,0xAE])
+CHATTER_ON=bytes([0xF4,0x56,0x09,0xAD])
 RPM_ROWS=list(range(400,2201,200))+list(range(2400,8001,400))
 VE_AXES=[list(map(float,[20,30,40,50,60,70,75,80,85,90,95,100])),
          list(map(float,range(100,301,20)))]
@@ -64,6 +67,7 @@ class Main(QMainWindow):
     def __init__(self):
         super().__init__(); self.setWindowTitle('MonitorTune | Buick 3800 Turbo'); self.resize(1500,900)
         self.ser=None; self.buf=bytearray(); self.data={}; self.bin=None
+        self.next_request=0.0; self.misses=0; self.alert_limits={'boost':28.0,'lean_afr':12.0,'coolant':105.0,'knock':2.0}; self.last_alert=''; self.voice_queue=queue.Queue()
         root=QWidget(); self.setCentralWidget(root); outer=QVBoxLayout(root)
         bar=QHBoxLayout(); self.port=QComboBox(); self.refresh_ports()
         refresh=QPushButton('Refresh COM'); refresh.clicked.connect(self.refresh_ports)
@@ -72,7 +76,10 @@ class Main(QMainWindow):
         bar.addWidget(QLabel('USB ALDL:')); bar.addWidget(self.port); bar.addWidget(refresh); bar.addWidget(self.connect_btn); bar.addStretch(); bar.addWidget(self.link); outer.addLayout(bar)
         self.tabs=QTabWidget(); outer.addWidget(self.tabs)
         self.tabs.addTab(self.engine_tab(),'ENGINE HMI'); self.tabs.addTab(self.dtc_tab(),'DIAGNOSTICS'); self.tabs.addTab(self.ve_tab(),'BIN / VE CALIBRATION')
-        self.statusBar().showMessage('Dedicated Buick 3800 • Delco OSE $11P V104 • 8192 baud')
+        self.statusBar().showMessage('Dedicated Buick 3800 • Delco OSE $11P V104 • 8192 baud • 3D cutaway')
+        self.alert_bar=QLabel('NO ACTIVE WARNINGS'); self.alert_bar.setAlignment(Qt.AlignCenter); self.alert_bar.setStyleSheet('background:#10251d;color:#76e6a5;font-weight:bold;padding:7px'); outer.addWidget(self.alert_bar)
+        self.alert_settings=QPushButton('Alert limits'); self.alert_settings.clicked.connect(self.configure_alerts); bar.addWidget(self.alert_settings)
+        threading.Thread(target=self.speech_worker,daemon=True).start()
         self.timer=QTimer(self); self.timer.timeout.connect(self.poll); self.timer.start(25)
         self.anim=QTimer(self); self.anim.timeout.connect(lambda:self.engine.update()); self.anim.start(40)
     def refresh_ports(self):
@@ -85,6 +92,7 @@ class Main(QMainWindow):
         if not dev: return
         try:
             self.ser=serial.Serial(dev,BAUD,bytesize=8,parity='N',stopbits=1,timeout=0)
+            self.ser.reset_input_buffer(); self.ser.write(CHATTER_OFF); self.next_request=time.monotonic()+0.15; self.misses=0
             self.connect_btn.setText('Disconnect'); self.link.setText('ALDL LINK OPEN — WAITING FOR VALID FRAME')
             self.link.setStyleSheet('color:#f4c15d;font-weight:bold')
         except Exception as ex: QMessageBox.critical(self,'ALDL connection',str(ex))
@@ -158,17 +166,46 @@ class Main(QMainWindow):
             n=self.ser.in_waiting
             if n:self.buf.extend(self.ser.read(n))
             f,used=find_frame(self.buf)
-            if used:self.buf=self.buf[used:]
             if f:
-                self.data=decode_frame(f); self.engine.update_data(self.data)
-                d=self.data
-                vals={'RPM':d['rpm'],'BOOST':d['boost'],'AFR':d['afr'],'COOLANT':d['coolant'],'MAP':d['map'],
-                  'IGNITION':d['spark'],'KNOCK RETARD':d['knock'],'TPS':d['tps'],'VE RAW':d['ve'],
-                  'CALC VE':None,'SPEED':d['speed'],'IAC':None}
+                self.buf=self.buf[used:]; self.misses=0
+                self.data=decode_frame(f); self.engine.update_data(self.data); d=self.data
+                calc=(d['afr']/d['cmd_afr']*d['ve']) if d['cmd_afr']>0 and 8.0<=d['afr']<=22.0 else None
+                vals={'RPM':d['rpm'],'BOOST':d['boost'],'AFR':d['afr'] if 8.0<=d['afr']<=22.0 else None,'COOLANT':d['coolant'],'MAP':d['map'],
+                  'IGNITION':d['spark'],'KNOCK RETARD':d['knock'],'TPS':d['tps'],'VE RAW':d['ve'],'CALC VE':calc,'SPEED':d['speed'],'IAC':None}
                 for k,v in vals.items(): self.gauges[k].set_value(v)
                 self.link.setText('ECU DATA VALID'); self.link.setStyleSheet('color:#65e6a4;font-weight:bold')
+                self.check_alerts(d); self.next_request=time.monotonic()+0.05
+            elif time.monotonic()>=self.next_request:
+                self.ser.reset_input_buffer(); self.buf.clear(); self.ser.write(REQ_ENGINE)
+                self.next_request=time.monotonic()+0.40; self.misses+=1
+                if self.misses>=5:
+                    self.ser.reset_input_buffer(); self.ser.write(CHATTER_OFF); self.next_request=time.monotonic()+0.15; self.misses=0
+                    self.link.setText('ALDL RESYNC — REQUESTING MODE 1 MESSAGE 0'); self.link.setStyleSheet('color:#f4c15d;font-weight:bold')
         except Exception as ex:
             self.link.setText('ALDL ERROR: '+str(ex)); self.link.setStyleSheet('color:#ff6868;font-weight:bold')
+    def check_alerts(self,d):
+        issues=[]
+        if d['boost']>=self.alert_limits['boost']: issues.append(f"OVERBOOST {d['boost']:.1f} PSI")
+        if d['boost']>0 and 8.0<=d['afr']<=22.0 and d['afr']>=self.alert_limits['lean_afr']: issues.append(f"LEAN AFR UNDER BOOST {d['afr']:.1f}")
+        if d['coolant']>=self.alert_limits['coolant']: issues.append(f"HIGH COOLANT {d['coolant']:.0f} C")
+        if d['knock']>=self.alert_limits['knock']: issues.append(f"KNOCK RETARD {d['knock']:.1f} DEG")
+        msg='WARNING: '+' • '.join(issues) if issues else ''
+        if msg:
+            self.alert_bar.setText(msg); self.alert_bar.setStyleSheet('background:#4a1717;color:#ffb0a8;font-weight:bold;padding:7px')
+            if msg!=self.last_alert:self.voice_queue.put(msg); self.last_alert=msg
+        else:
+            self.alert_bar.setText('NO ACTIVE WARNINGS'); self.alert_bar.setStyleSheet('background:#10251d;color:#76e6a5;font-weight:bold;padding:7px'); self.last_alert=''
+    def speech_worker(self):
+        while True:
+            msg=self.voice_queue.get()
+            try:
+                import pyttsx3
+                engine=pyttsx3.init(); engine.setProperty('rate',185); engine.say(msg); engine.runAndWait(); engine.stop()
+            except Exception: pass
+    def configure_alerts(self):
+        for key,label in [('boost','Maximum boost warning (psi)'),('lean_afr','Lean AFR warning under boost'),('coolant','Coolant warning (°C)'),('knock','Knock retard warning (°)')]:
+            value,ok=QInputDialog.getDouble(self,'Alert threshold',label,self.alert_limits[key],0.1,300.0,1)
+            if ok:self.alert_limits[key]=value
     def closeEvent(self,e):
         if self.ser:self.ser.close()
         e.accept()
