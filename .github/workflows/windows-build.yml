@@ -45,6 +45,16 @@ jobs:
           --collect-all pyttsx3
           --add-data "engine_scene.html;."
           main.py
+      - name: Copy HMI into package locations
+        shell: pwsh
+        run: |
+          $package = "windows/dist/MonitorTune"
+          if (!(Test-Path "$package/MonitorTune.exe")) { throw "MonitorTune.exe missing before HMI copy" }
+          New-Item -ItemType Directory -Force -Path $package | Out-Null
+          Copy-Item "windows/engine_scene.html" "$package/engine_scene.html" -Force
+          if (Test-Path "$package/_internal") {
+            Copy-Item "windows/engine_scene.html" "$package/_internal/engine_scene.html" -Force
+          }
       - name: Verify packaged HMI
         shell: pwsh
         run: |
