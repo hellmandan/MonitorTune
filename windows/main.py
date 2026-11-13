@@ -125,6 +125,7 @@ class EnginePanel(QWebEngineView):
             Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parent)) / 'engine_scene.html',
             Path(sys.executable).resolve().parent / 'engine_scene.html',
             Path(sys.executable).resolve().parent / '_internal' / 'engine_scene.html',
+            Path.cwd() / 'engine_scene.html',
         ]
         scene = next((p for p in candidates if p.is_file()), None)
         if scene is None:
