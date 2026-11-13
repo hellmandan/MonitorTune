@@ -119,7 +119,17 @@ class EnginePanel(QWebEngineView):
     def __init__(self):
         super().__init__()
         self.setMinimumSize(650,480)
-        scene=Path(__file__).with_name('engine_scene.html')
+        # PyInstaller 6 places bundled data under _internal; source runs beside main.py.
+        candidates = [
+            Path(__file__).resolve().with_name('engine_scene.html'),
+            Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parent)) / 'engine_scene.html',
+            Path(sys.executable).resolve().parent / 'engine_scene.html',
+            Path(sys.executable).resolve().parent / '_internal' / 'engine_scene.html',
+        ]
+        scene = next((p for p in candidates if p.is_file()), None)
+        if scene is None:
+            self.setHtml('<html><body style="background:#080e15;color:#ff7777;font:18px Segoe UI;padding:24px"><h2>Engine HMI resource missing</h2><p>engine_scene.html was not found in the application package.</p></body></html>')
+            return
         self.load(scene.as_uri())
     def update_data(self,d):
         payload=json.dumps({'rpm':d.get('rpm',0),'boost':d.get('boost',0)})
