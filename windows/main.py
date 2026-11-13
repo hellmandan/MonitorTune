@@ -1,9 +1,9 @@
-import sys, math, struct, time
+import sys, math, struct, time, json
 from pathlib import Path
 import serial
 from serial.tools import list_ports
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QPainter, QColor, QPen, QFont
+from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import (QApplication,QMainWindow,QWidget,QVBoxLayout,QHBoxLayout,
  QLabel,QPushButton,QComboBox,QTabWidget,QGridLayout,QTableWidget,QTableWidgetItem,
  QFileDialog,QMessageBox,QGroupBox,QHeaderView,QStatusBar)
@@ -35,32 +35,15 @@ def find_frame(buf):
             return f,i+FRAME_LEN
     return None,max(0,len(buf)-FRAME_LEN+1)
 
-class EnginePanel(QWidget):
+class EnginePanel(QWebEngineView):
     def __init__(self):
-        super().__init__(); self.data={}; self.t=0
+        super().__init__()
         self.setMinimumSize(650,480)
-    def update_data(self,d): self.data=d; self.t=time.time(); self.update()
-    def paintEvent(self,e):
-        p=QPainter(self); p.setRenderHint(QPainter.Antialiasing)
-        p.fillRect(self.rect(),QColor('#080d14')); w=self.width(); h=self.height()
-        # HMI-style schematic engine block, piston/valve motion driven by ECU RPM.
-        cx,cy=w*.5,h*.48; rpm=self.data.get('rpm',0); phase=(time.time()*rpm/60*2*math.pi)% (2*math.pi) if rpm>0 else 0
-        p.setPen(QPen(QColor('#243b50'),3)); p.setBrush(QColor('#142332'))
-        p.drawRoundedRect(int(cx-w*.19),int(cy-h*.18),int(w*.38),int(h*.40),22,22)
-        for bank in (-1,1):
-            for i in range(3):
-                x=cx+bank*w*.095; y=cy+(i-1)*h*.105
-                p.setPen(QPen(QColor('#4d708a'),2)); p.setBrush(QColor('#1b3448'))
-                p.drawRoundedRect(int(x-22),int(y-31),44,62,8,8)
-                travel=math.sin(phase+i*2.1+bank)*13 if rpm>0 else 0
-                p.setBrush(QColor('#d4e0e8')); p.setPen(Qt.NoPen)
-                p.drawRoundedRect(int(x-15),int(y-9+travel),30,15,4,4)
-                p.setPen(QPen(QColor('#f29c38'),3)); p.drawLine(int(x),int(y+6+travel),int(cx),int(cy+h*.23))
-        p.setPen(QColor('#e5edf5')); p.setFont(QFont('Segoe UI',13,QFont.Bold))
-        p.drawText(18,30,'3800 V6 • TURBO • OSE $11P V104')
-        p.setPen(QColor('#6f91aa')); p.setFont(QFont('Segoe UI',9))
-        p.drawText(18,h-18,'Illustrative internal motion synchronised to ECU RPM — not a measured mechanical model')
-        p.end()
+        scene=Path(__file__).with_name('engine_scene.html')
+        self.load(scene.as_uri())
+    def update_data(self,d):
+        payload=json.dumps({'rpm':d.get('rpm',0),'boost':d.get('boost',0)})
+        self.page().runJavaScript('if(window.setEngineData) window.setEngineData('+payload+');')
 
 class Gauge(QGroupBox):
     def __init__(self,title,unit,lo,hi):
