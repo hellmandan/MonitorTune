@@ -1,136 +1,50 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>MonitorTune 3800 V6</title>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MonitorTune Buick 3800 HMI</title>
 <style>
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#070b10;color:#e7eef5;font-family:Segoe UI,Arial}
-#hud{position:absolute;z-index:2;left:18px;top:14px;pointer-events:none;text-shadow:0 2px 5px #000}
-#title{font-size:16px;font-weight:700;letter-spacing:1.2px}#sub{font-size:11px;color:#91a8ba;margin-top:5px}
-#legend{position:absolute;right:16px;bottom:14px;color:#9eb4c5;font-size:11px;text-align:right;line-height:1.5}
-#status{position:absolute;left:18px;bottom:14px;color:#91a8ba;font-size:11px}
-canvas{display:block}
-</style></head><body>
-<div id="hud"><div id="title">BUICK 3800 • 90° V6 • TURBOCHARGED</div><div id="sub">LIVE ECU RPM DRIVE • PHYSICALLY LIT 3D CUTAWAY</div></div>
-<div id="status">Illustrative internal motion — not a mechanical sensor or measured cylinder-pressure model</div>
-<div id="legend">LEFT / RIGHT MOUSE: ROTATE / ZOOM<br>ALDL DATA: <span id="rpm">WAITING</span></div>
-<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>
-<script type="module">
-import * as THREE from 'three';
-import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
-const scene=new THREE.Scene(); scene.background=new THREE.Color(0x080d13);
-const camera=new THREE.PerspectiveCamera(34,innerWidth/innerHeight,.1,100); camera.position.set(8,6,10);
-const renderer=new THREE.WebGLRenderer({antialias:true,alpha:false}); renderer.setPixelRatio(Math.min(devicePixelRatio,2)); renderer.setSize(innerWidth,innerHeight);
-renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.15;document.body.appendChild(renderer.domElement);
-const pmrem=new THREE.PMREMGenerator(renderer);scene.environment=pmrem.fromScene(new RoomEnvironment(),.04).texture;
-scene.add(new THREE.HemisphereLight(0xbfd8ed,0x171b20,2.0));
-function area(x,y,z,power,size){const l=new THREE.DirectionalLight(0xffffff,power);l.position.set(x,y,z);l.castShadow=true;scene.add(l);return l}
-area(5,9,7,3);area(-7,4,3,2);area(0,5,-8,2.5);
-const mat=(color,metalness=0.4,roughness=.34)=>new THREE.MeshStandardMaterial({color,metalness,roughness});
-const aluminum=mat(0x9da8ae,.82,.28), dark=mat(0x202a32,.72,.3), iron=mat(0x525b63,.86,.25), black=mat(0x10171c,.3,.48), rubber=mat(0x171a1d,.05,.82), red=mat(0xa62d21,.35,.38), brass=mat(0xb18a4c,.78,.27), copper=mat(0x9c5938,.7,.32), blue=mat(0x263c4c,.72,.3);
-const ground=new THREE.Mesh(new THREE.PlaneGeometry(200,200),mat(0x111820,.2,.75));ground.rotation.x=-Math.PI/2;ground.position.y=-2.45;ground.receiveShadow=true;scene.add(ground);
-const engine=new THREE.Group();scene.add(engine);
-function box(parent,w,h,d,m,x,y,z,bevel=0){const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;parent.add(o);return o}
-function cyl(parent,r1,r2,len,m,x,y,z,rx=0,ry=0,rz=0,seg=32){const o=new THREE.Mesh(new THREE.CylinderGeometry(r1,r2,len,seg),m);o.position.set(x,y,z);o.rotation.set(rx,ry,rz);o.castShadow=true;o.receiveShadow=true;parent.add(o);return o}
-function torus(parent,r,t,m,x,y,z,rx=0,ry=0,rz=0){const o=new THREE.Mesh(new THREE.TorusGeometry(r,t,12,48),m);o.position.set(x,y,z);o.rotation.set(rx,ry,rz);o.castShadow=true;parent.add(o);return o}
-// Cast aluminium crankcase with a cutaway window to expose rotating internals.
-box(engine,4.5,1.55,2.35,aluminum,0,0,0);
-box(engine,4.15,.52,2.12,dark,0,-.95,0);
-box(engine,2.0,.12,2.0,black,0,-1.27,0);
-for(let x=-1.8;x<=1.81;x+=.45){cyl(engine,.055,.055,.18,brass,x,-.65,1.2,Math.PI/2);}
-// Six cylinder sleeves in a 90-degree V, with visible pistons, rods and valve gear.
-const moving=[],valves=[];
-for(let bank of [-1,1]) for(let i=0;i<3;i++){
- const x=(i-1)*1.35,z=bank*.67,ang=bank*Math.PI/4;
- const sleeve=new THREE.Group();sleeve.position.set(x,.68,z);sleeve.rotation.z=ang;engine.add(sleeve);
- cyl(sleeve,.47,.47,1.45,iron,0,0,0,Math.PI/2,0,0);
- torus(sleeve,.43,.055,aluminum,0,.72,0);
- const piston=new THREE.Group();piston.position.set(0,-.13,0);sleeve.add(piston);
- cyl(piston,.385,.385,.24,aluminum,0,0,0,Math.PI/2);
- torus(piston,.34,.025,iron,0,.12,0);
- for(let k=0;k<3;k++)torus(piston,.37,.012,black,0,.07-k*.045,0);
- const rod=new THREE.Group();rod.position.set(0,-.2,0);sleeve.add(rod);
- cyl(rod,.095,.095,.88,brass,0,-.35,0,0,0,0,20);
- torus(rod,.13,.035,iron,0,-.78,0,Math.PI/2);
- moving.push({piston,rod,phase:i*2.094+ (bank===1?Math.PI:0),sleeve});
- // cylinder head / valve cover
- box(engine,1.25,.28,.86,blue,x,1.55,z*1.3);
- box(engine,1.1,.12,.72,aluminum,x,1.76,z*1.3);
- for(let v=0;v<2;v++){
-   const vx=x+(v?-.25:.25),vz=z*1.3;
-   cyl(engine,.07,.07,.62,iron,vx,1.27,vz,0,0,0,16);
-   cyl(engine,.13,.13,.07,brass,vx,1.03,vz,0,0,0,20);
-   const spring=torus(engine,.105,.018,aluminum,vx,1.18,vz,Math.PI/2);
-   valves.push({spring,phase:i*2.094+v*Math.PI});
- }
- // spark plug and ignition lead
- cyl(engine,.075,.075,.3,brass,x,1.96,z*1.3,0,0,0,16);
- cyl(engine,.035,.035,.48,rubber,x+.08,2.12,z*1.3,0,0,0,12);
-}
-// Crankshaft, journals, counterweights and pulley.
-const crank=new THREE.Group();engine.add(crank);
-cyl(crank,.12,.12,4.1,iron,0,-1.35,0,Math.PI/2);
-for(let i=-2;i<=2;i++){cyl(crank,.23,.23,.24,brass,i*.78,-1.35,0,Math.PI/2);box(crank,.36,.16,.38,iron,i*.78,-1.35,.27);}
-const pulley=cyl(engine,.62,.62,.24,iron,0,-.2,1.42,Math.PI/2);
-torus(engine,.52,.08,black,0,-.2,1.56,Math.PI/2);
-for(let i=0;i<8;i++){const a=i*Math.PI/4;cyl(engine,.045,.045,.05,brass,Math.cos(a)*.42,-.2+Math.sin(a)*.42,1.58,Math.PI/2,0,0,12)}
-// Intake manifold, throttle body, fuel rails and injectors.
-box(engine,2.55,.35,1.12,aluminum,0,2.12,0);
-for(let i=-2;i<=2;i++){cyl(engine,.18,.14,.9,iron,i*.42,2.48,0,0,0,0,24)}
-cyl(engine,.35,.35,.55,aluminum,0,2.48,1.0,Math.PI/2);
-torus(engine,.27,.055,brass,0,2.48,1.29,Math.PI/2);
-for(let bank of [-1,1]){
- cyl(engine,.07,.07,3.3,brass,0,1.75,bank*1.22,Math.PI/2,0,Math.PI/2);
- for(let i=0;i<3;i++)cyl(engine,.055,.055,.25,black,(i-1)*1.35,1.55,bank*1.22,0,0,0,12);
-}
-// Exhaust manifolds and crossover, stainless downpipe.
-for(let bank of [-1,1]){
- const manifold=cyl(engine,.18,.18,2.8,iron,0,.45,bank*1.48,Math.PI/2,0,Math.PI/2);
- for(let i=0;i<3;i++)torus(engine,.2,.055,iron,(i-1)*1.35,.48,bank*1.42,Math.PI/2,0,0);
-}
-const exhaust=cyl(engine,.16,.16,2.6,iron,0,.4,-1.9,Math.PI/2);
-torus(engine,.22,.06,aluminum,0,.4,-3.15,Math.PI/2);
-// Turbocharger: turbine housing, compressor housing, centre cartridge and wastegate can.
-const turbo=new THREE.Group();turbo.position.set(2.9,.85,-1.45);engine.add(turbo);
-const housing=cyl(turbo,.72,.72,.55,iron,0,0,0,Math.PI/2,0,0,48);
-torus(turbo,.55,.16,aluminum,0,0,.32,Math.PI/2);
-cyl(turbo,.18,.18,.85,brass,0,0,0,Math.PI/2);
-const compressor=cyl(turbo,.55,.55,.34,aluminum,0,0,.55,Math.PI/2,0,0,48);
-torus(turbo,.4,.055,brass,0,0,.76,Math.PI/2);
-const turboWheel=new THREE.Group();turboWheel.position.set(0,0,.77);turbo.add(turboWheel);
-cyl(turboWheel,.1,.1,.06,brass,0,0,0,Math.PI/2);
-for(let i=0;i<9;i++){const a=i*Math.PI*2/9;const blade=box(turboWheel,.08,.38,.025,aluminum,Math.cos(a)*.2,Math.sin(a)*.2,.02);blade.rotation.z=a;}
-cyl(turbo,.16,.16,.4,red,.7,-.5,.05,0,0,0,24);
-// Charge pipe and intake plumbing
-const pipe1=cyl(engine,.19,.19,2.3,aluminum,2.05,1.65,1.35,0,0,Math.PI/2);
-torus(engine,.21,.035,blue,1.0,1.65,1.35,Math.PI/2);
-const intercooler=box(engine,1.15,.7,.42,dark,3.5,1.65,1.2);
-for(let j=0;j<9;j++)box(engine,.035,.58,.45,aluminum,3.02+j*.12,1.65,1.2);
-cyl(engine,.16,.16,1.4,aluminum,3.4,2.05,1.2,Math.PI/2);
-// Oil filter, starter, alternator and accessory belt / pulleys
-cyl(engine,.27,.27,.62,whiteMat(),-2.25,-.55,.6,Math.PI/2);
-function whiteMat(){return mat(0xc5cbd0,.65,.25)}
-cyl(engine,.35,.35,.42,iron,-2.25,.25,1.25,Math.PI/2);
-torus(engine,.3,.045,black,-2.25,.25,1.48,Math.PI/2);
-cyl(engine,.3,.3,.6,aluminum,-1.65,-.2,1.45,Math.PI/2);
-torus(engine,.27,.045,rubber,-1.65,-.2,1.78,Math.PI/2);
-// Fasteners on head rails and block faces
-for(let bank of [-1,1])for(let i=0;i<7;i++){
- const x=-1.9+i*.63;
- cyl(engine,.045,.045,.035,brass,x,1.93,bank*1.35,Math.PI/2,0,0,12);
-}
-// Camera orbit controls (simple local controls, no extra dependency)
-let down=false,px=0,py=0,az=.65,el=.35,dist=12;
-renderer.domElement.addEventListener('pointerdown',e=>{down=true;px=e.clientX;py=e.clientY;renderer.domElement.setPointerCapture(e.pointerId)});
-renderer.domElement.addEventListener('pointerup',()=>down=false);
-renderer.domElement.addEventListener('pointermove',e=>{if(!down)return;az+=(e.clientX-px)*.008;el=Math.max(-.1,Math.min(1.1,el+(e.clientY-py)*.006));px=e.clientX;py=e.clientY});
-renderer.domElement.addEventListener('wheel',e=>{dist=Math.max(7,Math.min(20,dist+e.deltaY*.01))},{passive:true});
-let liveRpm=0,last=performance.now(),smoothRpm=0,boost=0;
-window.setEngineData=(d)=>{liveRpm=Number(d.rpm)||0;boost=Number(d.boost)||0;document.getElementById('rpm').textContent=Math.round(liveRpm)+' RPM • '+boost.toFixed(1)+' PSI'};
-function animate(now){requestAnimationFrame(animate);const dt=Math.min(.05,(now-last)/1000);last=now;smoothRpm+=(liveRpm-smoothRpm)*Math.min(1,dt*4);const omega=smoothRpm/60*Math.PI*2;
- crank.rotation.x+=omega*dt;turboWheel.rotation.x+=omega*dt*8;
- moving.forEach((o)=>{const a=omega*now/1000+o.phase;const stroke=Math.cos(a);o.piston.position.y=-.13+stroke*.27;o.rod.rotation.z=Math.sin(a)*.24});
- valves.forEach((v)=>{const lift=Math.max(0,Math.sin(omega*now/1000+v.phase));v.spring.position.y=1.18+lift*.07;v.spring.scale.y=1-lift*.18});
- camera.position.set(Math.sin(az)*Math.cos(el)*dist,Math.sin(el)*dist*.75+2,Math.cos(az)*Math.cos(el)*dist);camera.lookAt(.25,.4,0);
- renderer.render(scene,camera)}
-requestAnimationFrame(animate);
-addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+:root{color-scheme:dark}*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#080e15;color:#eaf2f8;font-family:Segoe UI,Arial,sans-serif}
+#hmi{height:100%;display:flex;flex-direction:column;padding:16px;gap:12px;background:radial-gradient(ellipse at 48% 42%,#1b2a38 0,#0c151f 54%,#070c12 100%)}
+header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.title{font-size:clamp(14px,2vw,20px);font-weight:800;letter-spacing:1.3px}.sub{font-size:11px;color:#8fa8bc;margin-top:5px;letter-spacing:.8px}
+#state{font-size:11px;color:#e9bd66;border:1px solid #69512d;border-radius:20px;padding:7px 10px;white-space:nowrap}
+#stage{position:relative;flex:1;min-height:0;border:1px solid #263b4e;border-radius:12px;background:linear-gradient(145deg,rgba(26,43,57,.8),rgba(6,12,19,.92));box-shadow:inset 0 0 40px #0008;overflow:hidden}
+svg{width:100%;height:100%;display:block} .metal{fill:url(#metal);stroke:#b6c5cf;stroke-width:2}.dark{fill:#202c36;stroke:#758895;stroke-width:2}.bright{fill:#b7c3ca;stroke:#e4edf2;stroke-width:1.5}.hot{fill:#9d382b;stroke:#ed8a64;stroke-width:2}.pipe{fill:none;stroke:#b0bdc6;stroke-width:17;stroke-linecap:round;stroke-linejoin:round}.thin{fill:none;stroke:#8396a4;stroke-width:5;stroke-linecap:round}.label{fill:#a9bfd0;font-size:13px;letter-spacing:1px}.small{fill:#7893a8;font-size:10px;letter-spacing:1px}
+.piston{transform-box:fill-box;transform-origin:center;animation:piston 1s ease-in-out infinite alternate}.p2{animation-delay:-.25s}.p3{animation-delay:-.5s}.p4{animation-delay:-.75s}.p5{animation-delay:-.15s}.p6{animation-delay:-.65s}
+@keyframes piston{from{transform:translateY(-9px)}to{transform:translateY(9px)}}
+#footer{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.metric{border:1px solid #294256;border-radius:9px;background:#101d28;padding:10px 12px;min-width:0}.metric span{display:block;color:#88a3b8;font-size:10px;letter-spacing:1px}.metric strong{display:block;color:#e9f2f8;font-size:clamp(17px,2.5vw,25px);margin-top:4px;font-variant-numeric:tabular-nums}.metric em{font-style:normal;color:#87dcb4;font-size:10px}
+@media(max-width:560px){#hmi{padding:9px;gap:7px}#footer{grid-template-columns:repeat(2,1fr)}.label{font-size:10px}}
+</style></head>
+<body><main id="hmi">
+<header><div><div class="title">BUICK 3800 • 90° V6 • TURBOCHARGED</div><div class="sub">LIVE ECU ENGINE HMI • OFFLINE-SAFE VECTOR RENDERER</div></div><div id="state">WAITING FOR ECU DATA</div></header>
+<section id="stage" aria-label="Animated Buick 3800 V6 engine cutaway">
+<svg viewBox="0 0 900 520" role="img" aria-label="Illustrative V6 engine with animated pistons, crankshaft, turbocharger and intake plumbing">
+<defs><linearGradient id="metal" x2="0.8" y2="1"><stop stop-color="#d3dce1"/><stop offset=".45" stop-color="#647580"/><stop offset="1" stop-color="#26343e"/></linearGradient><linearGradient id="block" x2="0" y2="1"><stop stop-color="#657783"/><stop offset="1" stop-color="#1c2933"/></linearGradient><filter id="glow"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+<g opacity=".24" stroke="#547087" stroke-width="1"><path d="M0 90H900M0 170H900M0 250H900M0 330H900M0 410H900M100 0V520M200 0V520M300 0V520M400 0V520M500 0V520M600 0V520M700 0V520M800 0V520"/></g>
+<!-- block and sump --><path d="M165 180 Q165 145 205 145H590Q635 145 645 185L675 350Q680 390 635 400H205Q160 390 160 350Z" fill="url(#block)" stroke="#a6b5bf" stroke-width="4"/><path d="M205 400H635L600 452H245Z" class="dark"/><path d="M230 424H605" stroke="#b1c0c9" stroke-width="5"/>
+<!-- bank heads --><path d="M185 158L285 52Q310 30 342 53L455 158Z" class="metal"/><path d="M390 158L500 52Q525 30 557 53L660 158Z" class="metal"/>
+<path d="M208 145L302 68L423 145M414 145L518 68L637 145" fill="none" stroke="#dce5e9" stroke-width="5"/>
+<!-- six bores / pistons --><g stroke="#d6e0e6" stroke-width="3">
+<g><rect x="245" y="145" width="65" height="195" rx="27" class="dark"/><rect x="335" y="145" width="65" height="195" rx="27" class="dark"/><rect x="425" y="145" width="65" height="195" rx="27" class="dark"/></g>
+<g transform="rotate(-42 535 245)"><rect x="475" y="145" width="65" height="195" rx="27" class="dark"/><rect x="565" y="145" width="65" height="195" rx="27" class="dark"/><rect x="655" y="145" width="65" height="195" rx="27" class="dark"/></g>
+</g>
+<g class="piston"><rect x="252" y="210" width="51" height="35" rx="7" class="bright"/><path d="M277 245V328" class="thin"/></g>
+<g class="piston p2"><rect x="342" y="245" width="51" height="35" rx="7" class="bright"/><path d="M367 280V328" class="thin"/></g>
+<g class="piston p3"><rect x="432" y="190" width="51" height="35" rx="7" class="bright"/><path d="M457 225V328" class="thin"/></g>
+<g class="piston p4"><rect x="510" y="206" width="51" height="35" rx="7" class="bright"/><path d="M535 241V328" class="thin"/></g>
+<g class="piston p5"><rect x="565" y="252" width="51" height="35" rx="7" class="bright"/><path d="M590 287V328" class="thin"/></g>
+<g class="piston p6"><rect x="620" y="190" width="51" height="35" rx="7" class="bright"/><path d="M645 225V328" class="thin"/></g>
+<!-- crankshaft --><path d="M195 350Q245 320 285 350T375 350T465 350T555 350T645 350" fill="none" stroke="#d2a15d" stroke-width="15" stroke-linecap="round"/><g fill="#b47b42" stroke="#e2bb7b" stroke-width="3"><circle cx="285" cy="350" r="19"/><circle cx="375" cy="350" r="19"/><circle cx="465" cy="350" r="19"/><circle cx="555" cy="350" r="19"/><circle cx="645" cy="350" r="19"/></g>
+<!-- intake manifold and fuel rails --><path d="M250 40Q450 -15 640 40L610 85H280Z" class="dark"/><path d="M280 54H610" stroke="#d2dce2" stroke-width="9"/><path d="M300 80V112M380 80V112M460 80V112M540 80V112M600 80V112" class="thin"/>
+<!-- exhaust and turbo --><path d="M185 200Q100 205 110 290T160 340" class="pipe"/><path d="M650 200Q755 205 755 290T690 340" class="pipe"/><circle cx="760" cy="155" r="66" fill="#26343e" stroke="#c2cdd4" stroke-width="8"/><circle cx="760" cy="155" r="38" fill="#111d27" stroke="#d4a15e" stroke-width="6"/><g id="turboWheel" transform-origin="760px 155px" stroke="#d6e1e8" stroke-width="7"><path d="M760 120V190M725 155H795M735 130L785 180M785 130L735 180"/></g><path d="M810 155H865V95" class="pipe"/><path d="M865 95H790" class="thin"/>
+<rect x="720" y="245" width="130" height="65" rx="8" class="hot"/><text x="785" y="272" text-anchor="middle" class="label">TURBO</text><text x="785" y="290" text-anchor="middle" class="small">COMPRESSOR</text>
+<text x="70" y="475" class="label">CAST ALLOY V6 BLOCK</text><text x="70" y="493" class="small">ILLUSTRATIVE MOTION MODEL • NOT CAD OR CYLINDER-PRESSURE DATA</text><text x="690" y="475" class="label">BOOST / CHARGE</text><text x="690" y="493" class="small">LIVE RPM-DRIVEN DISPLAY</text>
+</svg></section>
+<section id="footer">
+<div class="metric"><span>ENGINE SPEED</span><strong id="rpm">— RPM</strong><em>ECU LIVE VALUE</em></div>
+<div class="metric"><span>BOOST PRESSURE</span><strong id="boost">— PSI</strong><em>MAP MINUS BARO</em></div>
+<div class="metric"><span>ENGINE MODEL</span><strong>3.8L V6</strong><em>STROKER / TURBO</em></div>
+</section></main>
+<script>
+(function(){let rpm=0,boost=0,angle=0,last=performance.now();const $=id=>document.getElementById(id);window.setEngineData=function(d){rpm=Math.max(0,Number(d.rpm)||0);boost=Number(d.boost)||0;$('rpm').textContent=Math.round(rpm).toLocaleString()+' RPM';$('boost').textContent=boost.toFixed(1)+' PSI';$('state').textContent='ECU DATA VALID';$('state').style.color='#87e2b5';$('state').style.borderColor='#32684f';const duration=Math.max(.12,60/Math.max(400,rpm));document.querySelectorAll('.piston').forEach((p,i)=>{p.style.animationDuration=duration+'s';p.style.animationPlayState=rpm>0?'running':'paused'});$('turboWheel').style.animation='spin '+Math.max(.08,60/Math.max(800,rpm*8))+'s linear infinite'};document.head.insertAdjacentHTML('beforeend','<style>@keyframes spin{to{transform:rotate(360deg)}}</style>');document.querySelectorAll('.piston').forEach(p=>p.style.animationPlayState='paused');})(); 
 </script></body></html>
