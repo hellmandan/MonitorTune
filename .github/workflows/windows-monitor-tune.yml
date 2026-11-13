@@ -21,7 +21,7 @@ jobs:
         run: python -m py_compile windows/main.py
       - name: Build executable
         working-directory: windows
-        run: pyinstaller --noconfirm --clean --windowed --name MonitorTune --collect-all PySide6 --collect-all pyqtgraph main.py
+        run: pyinstaller --noconfirm --clean --windowed --name MonitorTune --collect-all PySide6 --collect-all PySide6.QtWebEngineCore --collect-all PySide6.QtWebEngineWidgets --collect-all pyqtgraph --add-data "engine_scene.html;." main.py
       - uses: actions/upload-artifact@v4
         with:
           name: MonitorTune-Windows
