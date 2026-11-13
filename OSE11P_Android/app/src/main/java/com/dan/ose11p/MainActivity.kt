@@ -24,6 +24,7 @@ import android.text.Spanned
 import android.text.TextUtils
 import android.text.style.ForegroundColorSpan
 import android.view.MotionEvent
+import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
@@ -170,6 +171,7 @@ class MainActivity : ComponentActivity() {
     private var connectedAt = 0L
     private var bgAnim: ValueAnimator? = null
     private var policeMap: PoliceMapBackground? = null
+    private var voiceCopilot: VoiceCopilot? = null
 
     // ---- file pickers
     private val openBin = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
@@ -264,6 +266,7 @@ class MainActivity : ComponentActivity() {
         loadAlertPrefs()
         loadAiSettings()
         buildUi()
+        activateHandsFreeVoice(requestPermissionIfNeeded = true)
         policeMap?.start()
         handler.post(object : Runnable {
             override fun run() {
@@ -276,6 +279,8 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         policeMap?.destroy()
         policeMap = null
+        voiceCopilot?.destroy()
+        voiceCopilot = null
         super.onDestroy()
         link?.stopFlag = true
         elmLink?.stopFlag = true
@@ -293,6 +298,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onPause() {
+        voiceCopilot?.pauseListening()
         policeMap?.stop()
         super.onPause()
         bgAnim?.pause()
@@ -302,6 +308,19 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         policeMap?.start()
         bgAnim?.resume()
+        activateHandsFreeVoice(requestPermissionIfNeeded = false)
+    }
+
+    private fun activateHandsFreeVoice(requestPermissionIfNeeded: Boolean) {
+        if (Build.VERSION.SDK_INT >= 23 &&
+            checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            if (requestPermissionIfNeeded) {
+                requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), 714)
+            }
+            return
+        }
+        if (voiceCopilot?.isWakeMode() != true) voiceCopilot?.setWakeMode(true)
+        else voiceCopilot?.resumeListening()
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
@@ -310,6 +329,10 @@ class MainActivity : ComponentActivity() {
             grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED
         if (requestCode == PoliceMapBackground.LOCATION_REQUEST) {
             policeMap?.onPermissionResult(granted)
+        }
+        if (requestCode == 714) {
+            if (granted) voiceCopilot?.setWakeMode(true)
+            else Toast.makeText(this, "Allow microphone access to use hands-free voice gauge queries.", Toast.LENGTH_LONG).show()
         }
         if ((requestCode == 712 || requestCode == 713) && granted) {
             Toast.makeText(this, "Bluetooth permission granted. Tap Connect again and select the paired adapter.", Toast.LENGTH_LONG).show()
@@ -989,6 +1012,8 @@ class MainActivity : ComponentActivity() {
         root.addView(holder, lp(MATCH, 0, 1f, 0))
         frame.addView(banner, bannerLp)
         setContentView(frame)
+        voiceCopilot = VoiceCopilot(this, ::answerVoiceQuestion) { _ -> }
+
         selectTab(0) // VE workspace is the only screen
         root.alpha = 0f
         root.animate().alpha(1f).setDuration(500).start()
@@ -1677,6 +1702,63 @@ class MainActivity : ComponentActivity() {
             tileVals["WidebandAFR"]?.setTextColor(c)
         }
         a.start()
+    }
+
+
+    /** Resolve spoken requests only from the latest live ECU sample; never invent a value. */
+    private fun answerVoiceQuestion(raw: String): String {
+        val q = raw.lowercase(Locale.US)
+        if (q.isBlank()) return "Sorry darling, I didn't catch that. Ask me for a gauge reading."
+        if (q.contains("stop listening") || q.contains("sleep")) {
+            voiceCopilot?.setWakeMode(false)
+            return "Wake listening is off."
+        }
+        val connected = link != null || elmLink != null
+        val fresh = connected && aiMonitor.lastSampleAt > 0L &&
+            System.currentTimeMillis() - aiMonitor.lastSampleAt <= aiMonitor.staleAfterMs
+        if (!fresh) return "I don't have a fresh ECU reading at the moment. Check the ALDL connection, darling."
+        val obd = connectionMode == "OBD-II"
+        val o = lastObd
+        val sample = last
+        fun say(name: String, value: Double?, unit: String, decimals: Int = 1): String {
+            if (value == null || !value.isFinite()) return "That $name reading isn't available from this ECU connection."
+            val number = if (decimals == 0) String.format(Locale.US, "%.0f", value) else String.format(Locale.US, "%.1f", value)
+            return "Your $name is $number $unit."
+        }
+        return when {
+            q.contains("boost") || q.contains("turbo") -> if (obd) {
+                val kpa = o?.mapKpa?.let { map -> o.baroKpa?.let { map - it } }
+                say("boost", kpa?.times(0.145038), "PSI")
+            } else say("boost", sample?.boostPsi, "PSI")
+            q.contains("coolant") || q.contains("engine temperature") || q.contains("water temp") -> say("coolant temperature", if (obd) o?.coolantC else sample?.coolant, "degrees")
+            q.contains("rpm") || q.contains("revs") -> say("engine speed", if (obd) o?.rpm else sample?.rpm, "RPM", 0)
+            q.contains("speed") -> say("vehicle speed", if (obd) o?.speedKph else sample?.speed, "kilometres per hour", 0)
+            q.contains("map") || q.contains("manifold pressure") -> say("manifold pressure", if (obd) o?.mapKpa else sample?.map, "kilopascals")
+            q.contains("afr") || q.contains("air fuel") || q.contains("wideband") -> if (obd) "Wideband AFR isn't supplied by standard OBD on this connection." else say("wideband AFR", sample?.wbAfr, "")
+            q.contains("target afr") || q.contains("commanded afr") -> if (obd) "Commanded AFR isn't available through this OBD connection." else say("commanded AFR", sample?.cmdAfr, "")
+            q.contains("timing") || q.contains("spark advance") || q.contains("ignition") -> say("ignition timing", if (obd) o?.timingDeg else sample?.spark, "degrees")
+            q.contains("knock") -> if (obd) "Knock retard isn't available through this standard OBD connection." else say("knock retard", sample?.knockRetard, "degrees")
+            q.contains("throttle") || q.contains("tps") -> say("throttle position", if (obd) o?.tpsPct else sample?.tps, "percent")
+            q.contains("iac") || q.contains("idle air") -> "IAC position isn't currently decoded by this MonitorTune ALDL profile."
+            q.contains("voltage") || q.contains("battery") -> say("ECU voltage", o?.moduleVoltage, "volts", 2)
+            q.contains("intake") || q.contains("iat") -> say("intake air temperature", o?.intakeC, "degrees")
+            q.contains("barometric") || q.contains("baro") -> say("barometric pressure", if (obd) o?.baroKpa else sample?.baro, "kilopascals")
+            q.contains("ve") || q.contains("volumetric efficiency") -> if (obd) "VE isn't available through this standard OBD connection." else say("calculated VE", sample?.calcVe, "percent")
+            q.contains("load") -> say("engine load", o?.loadPct, "percent")
+            q.contains("maf") || q.contains("airflow") -> say("mass airflow", o?.mafGps, "grams per second")
+            q.contains("fuel pressure") || q.contains("rail pressure") -> say("fuel rail pressure", o?.fuelRailKpa, "kilopascals")
+            else -> "I can read RPM, speed, boost, coolant, manifold pressure, AFR, timing, knock, throttle, voltage and other supported live parameters. Which one would you like, darling?"
+        }
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_HEADSETHOOK || keyCode == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE) {
+            if (Build.VERSION.SDK_INT >= 23 && checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), 714)
+            } else voiceCopilot?.startListening()
+            return true
+        }
+        return super.onKeyDown(keyCode, event)
     }
 
     private fun refresh() {

@@ -1,0 +1,29 @@
+name: Windows MonitorTune build
+on:
+  push:
+    branches: [ feature/voice-copilot ]
+    paths: [ 'windows/**', '.github/workflows/windows-monitor-tune.yml' ]
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          architecture: x64
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r windows/requirements.txt pyinstaller
+      - name: Compile check
+        run: python -m py_compile windows/main.py
+      - name: Build executable
+        working-directory: windows
+        run: pyinstaller --noconfirm --clean --windowed --name MonitorTune --collect-all PySide6 --collect-all PySide6.QtWebEngineCore --collect-all PySide6.QtWebEngineWidgets --collect-all pyqtgraph --add-data "engine_scene.html;." main.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MonitorTune-Windows
+          path: windows/dist/MonitorTune/
+          if-no-files-found: error

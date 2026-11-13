@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MonitorTune Buick 3800 HMI</title>
+<style>
+:root{color-scheme:dark}*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#080e15;color:#eaf2f8;font-family:Segoe UI,Arial,sans-serif}
+#hmi{height:100%;display:flex;flex-direction:column;padding:16px;gap:12px;background:radial-gradient(ellipse at 48% 42%,#1b2a38 0,#0c151f 54%,#070c12 100%)}
+header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.title{font-size:clamp(14px,2vw,20px);font-weight:800;letter-spacing:1.3px}.sub{font-size:11px;color:#8fa8bc;margin-top:5px;letter-spacing:.8px}
+#state{font-size:11px;color:#e9bd66;border:1px solid #69512d;border-radius:20px;padding:7px 10px;white-space:nowrap}
+#stage{position:relative;flex:1;min-height:0;border:1px solid #263b4e;border-radius:12px;background:linear-gradient(145deg,rgba(26,43,57,.8),rgba(6,12,19,.92));box-shadow:inset 0 0 40px #0008;overflow:hidden}
+svg{width:100%;height:100%;display:block} .metal{fill:url(#metal);stroke:#b6c5cf;stroke-width:2}.dark{fill:#202c36;stroke:#758895;stroke-width:2}.bright{fill:#b7c3ca;stroke:#e4edf2;stroke-width:1.5}.hot{fill:#9d382b;stroke:#ed8a64;stroke-width:2}.pipe{fill:none;stroke:#b0bdc6;stroke-width:17;stroke-linecap:round;stroke-linejoin:round}.thin{fill:none;stroke:#8396a4;stroke-width:5;stroke-linecap:round}.label{fill:#a9bfd0;font-size:13px;letter-spacing:1px}.small{fill:#7893a8;font-size:10px;letter-spacing:1px}
+.piston{transform-box:fill-box;transform-origin:center;animation:piston 1s ease-in-out infinite alternate}.p2{animation-delay:-.25s}.p3{animation-delay:-.5s}.p4{animation-delay:-.75s}.p5{animation-delay:-.15s}.p6{animation-delay:-.65s}
+@keyframes piston{from{transform:translateY(-9px)}to{transform:translateY(9px)}}
+#footer{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.metric{border:1px solid #294256;border-radius:9px;background:#101d28;padding:10px 12px;min-width:0}.metric span{display:block;color:#88a3b8;font-size:10px;letter-spacing:1px}.metric strong{display:block;color:#e9f2f8;font-size:clamp(17px,2.5vw,25px);margin-top:4px;font-variant-numeric:tabular-nums}.metric em{font-style:normal;color:#87dcb4;font-size:10px}
+@media(max-width:560px){#hmi{padding:9px;gap:7px}#footer{grid-template-columns:repeat(2,1fr)}.label{font-size:10px}}
+</style></head>
+<body><main id="hmi">
+<header><div><div class="title">BUICK 3800 • 90° V6 • TURBOCHARGED</div><div class="sub">LIVE ECU ENGINE HMI • OFFLINE-SAFE VECTOR RENDERER</div></div><div id="state">WAITING FOR ECU DATA</div></header>
+<section id="stage" aria-label="Animated Buick 3800 V6 engine cutaway">
+<svg viewBox="0 0 900 520" role="img" aria-label="Illustrative V6 engine with animated pistons, crankshaft, turbocharger and intake plumbing">
+<defs><linearGradient id="metal" x2="0.8" y2="1"><stop stop-color="#d3dce1"/><stop offset=".45" stop-color="#647580"/><stop offset="1" stop-color="#26343e"/></linearGradient><linearGradient id="block" x2="0" y2="1"><stop stop-color="#657783"/><stop offset="1" stop-color="#1c2933"/></linearGradient><filter id="glow"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+<g opacity=".24" stroke="#547087" stroke-width="1"><path d="M0 90H900M0 170H900M0 250H900M0 330H900M0 410H900M100 0V520M200 0V520M300 0V520M400 0V520M500 0V520M600 0V520M700 0V520M800 0V520"/></g>
+<!-- block and sump --><path d="M165 180 Q165 145 205 145H590Q635 145 645 185L675 350Q680 390 635 400H205Q160 390 160 350Z" fill="url(#block)" stroke="#a6b5bf" stroke-width="4"/><path d="M205 400H635L600 452H245Z" class="dark"/><path d="M230 424H605" stroke="#b1c0c9" stroke-width="5"/>
+<!-- bank heads --><path d="M185 158L285 52Q310 30 342 53L455 158Z" class="metal"/><path d="M390 158L500 52Q525 30 557 53L660 158Z" class="metal"/>
+<path d="M208 145L302 68L423 145M414 145L518 68L637 145" fill="none" stroke="#dce5e9" stroke-width="5"/>
+<!-- six bores / pistons --><g stroke="#d6e0e6" stroke-width="3">
+<g><rect x="245" y="145" width="65" height="195" rx="27" class="dark"/><rect x="335" y="145" width="65" height="195" rx="27" class="dark"/><rect x="425" y="145" width="65" height="195" rx="27" class="dark"/></g>
+<g transform="rotate(-42 535 245)"><rect x="475" y="145" width="65" height="195" rx="27" class="dark"/><rect x="565" y="145" width="65" height="195" rx="27" class="dark"/><rect x="655" y="145" width="65" height="195" rx="27" class="dark"/></g>
+</g>
+<g class="piston"><rect x="252" y="210" width="51" height="35" rx="7" class="bright"/><path d="M277 245V328" class="thin"/></g>
+<g class="piston p2"><rect x="342" y="245" width="51" height="35" rx="7" class="bright"/><path d="M367 280V328" class="thin"/></g>
+<g class="piston p3"><rect x="432" y="190" width="51" height="35" rx="7" class="bright"/><path d="M457 225V328" class="thin"/></g>
+<g class="piston p4"><rect x="510" y="206" width="51" height="35" rx="7" class="bright"/><path d="M535 241V328" class="thin"/></g>
+<g class="piston p5"><rect x="565" y="252" width="51" height="35" rx="7" class="bright"/><path d="M590 287V328" class="thin"/></g>
+<g class="piston p6"><rect x="620" y="190" width="51" height="35" rx="7" class="bright"/><path d="M645 225V328" class="thin"/></g>
+<!-- crankshaft --><path d="M195 350Q245 320 285 350T375 350T465 350T555 350T645 350" fill="none" stroke="#d2a15d" stroke-width="15" stroke-linecap="round"/><g fill="#b47b42" stroke="#e2bb7b" stroke-width="3"><circle cx="285" cy="350" r="19"/><circle cx="375" cy="350" r="19"/><circle cx="465" cy="350" r="19"/><circle cx="555" cy="350" r="19"/><circle cx="645" cy="350" r="19"/></g>
+<!-- intake manifold and fuel rails --><path d="M250 40Q450 -15 640 40L610 85H280Z" class="dark"/><path d="M280 54H610" stroke="#d2dce2" stroke-width="9"/><path d="M300 80V112M380 80V112M460 80V112M540 80V112M600 80V112" class="thin"/>
+<!-- exhaust and turbo --><path d="M185 200Q100 205 110 290T160 340" class="pipe"/><path d="M650 200Q755 205 755 290T690 340" class="pipe"/><circle cx="760" cy="155" r="66" fill="#26343e" stroke="#c2cdd4" stroke-width="8"/><circle cx="760" cy="155" r="38" fill="#111d27" stroke="#d4a15e" stroke-width="6"/><g id="turboWheel" transform-origin="760px 155px" stroke="#d6e1e8" stroke-width="7"><path d="M760 120V190M725 155H795M735 130L785 180M785 130L735 180"/></g><path d="M810 155H865V95" class="pipe"/><path d="M865 95H790" class="thin"/>
+<rect x="720" y="245" width="130" height="65" rx="8" class="hot"/><text x="785" y="272" text-anchor="middle" class="label">TURBO</text><text x="785" y="290" text-anchor="middle" class="small">COMPRESSOR</text>
+<text x="70" y="475" class="label">CAST ALLOY V6 BLOCK</text><text x="70" y="493" class="small">ILLUSTRATIVE MOTION MODEL • NOT CAD OR CYLINDER-PRESSURE DATA</text><text x="690" y="475" class="label">BOOST / CHARGE</text><text x="690" y="493" class="small">LIVE RPM-DRIVEN DISPLAY</text>
+</svg></section>
+<section id="footer">
+<div class="metric"><span>ENGINE SPEED</span><strong id="rpm">— RPM</strong><em>ECU LIVE VALUE</em></div>
+<div class="metric"><span>BOOST PRESSURE</span><strong id="boost">— PSI</strong><em>MAP MINUS BARO</em></div>
+<div class="metric"><span>ENGINE MODEL</span><strong>3.8L V6</strong><em>STROKER / TURBO</em></div>
+</section></main>
+<script>
+(function(){let rpm=0,boost=0,angle=0,last=performance.now();const $=id=>document.getElementById(id);window.setEngineData=function(d){rpm=Math.max(0,Number(d.rpm)||0);boost=Number(d.boost)||0;$('rpm').textContent=Math.round(rpm).toLocaleString()+' RPM';$('boost').textContent=boost.toFixed(1)+' PSI';$('state').textContent='ECU DATA VALID';$('state').style.color='#87e2b5';$('state').style.borderColor='#32684f';const duration=Math.max(.12,60/Math.max(400,rpm));document.querySelectorAll('.piston').forEach((p,i)=>{p.style.animationDuration=duration+'s';p.style.animationPlayState=rpm>0?'running':'paused'});$('turboWheel').style.animation='spin '+Math.max(.08,60/Math.max(800,rpm*8))+'s linear infinite'};document.head.insertAdjacentHTML('beforeend','<style>@keyframes spin{to{transform:rotate(360deg)}}</style>');document.querySelectorAll('.piston').forEach(p=>p.style.animationPlayState='paused');})(); 
+</script></body></html>
