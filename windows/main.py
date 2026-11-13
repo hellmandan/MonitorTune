@@ -87,7 +87,9 @@ class Main(QMainWindow):
         for x in list_ports.comports(): self.port.addItem(f'{x.device} — {x.description}',x.device)
     def toggle_serial(self):
         if self.ser:
-            self.ser.close(); self.ser=None; self.connect_btn.setText('Connect ALDL'); self.link.setText('ECU DISCONNECTED'); self.link.setStyleSheet('color:#ff6868;font-weight:bold'); return
+            try:self.ser.write(CHATTER_ON)
+            except Exception:pass
+            self.ser.close(); self.ser=None; self.buf.clear(); self.connect_btn.setText('Connect ALDL'); self.link.setText('ECU DISCONNECTED'); self.link.setStyleSheet('color:#ff6868;font-weight:bold'); return
         dev=self.port.currentData()
         if not dev: return
         try:
@@ -207,7 +209,10 @@ class Main(QMainWindow):
             value,ok=QInputDialog.getDouble(self,'Alert threshold',label,self.alert_limits[key],0.1,300.0,1)
             if ok:self.alert_limits[key]=value
     def closeEvent(self,e):
-        if self.ser:self.ser.close()
+        if self.ser:
+            try:self.ser.write(CHATTER_ON)
+            except Exception:pass
+            self.ser.close()
         e.accept()
 
 if __name__=='__main__':
