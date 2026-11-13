@@ -74,8 +74,7 @@ class AldlWorker(QThread):
             self.msleep(150)
             self.status.emit('ALDL LINK OPEN — POLLING MODE 1 MESSAGE 0')
             while self.running:
-                self.port.reset_input_buffer()
-                buf.clear()
+                # Keep partial bytes between request windows; a USB/serial read may split a frame.
                 self.port.write(REQ_ENGINE)
                 deadline = time.monotonic() + 0.40
                 frame = None
@@ -89,8 +88,14 @@ class AldlWorker(QThread):
                         if frame is not None:
                             break
                 if frame is not None:
+                    decoded = decode_frame(frame)
+                    # Reject physically impossible/corrupt payloads even when a checksum passes.
+                    if not (0 <= decoded['rpm'] <= 9000 and 0 <= decoded['map'] <= 450 and -40 <= decoded['coolant'] <= 150 and 0 <= decoded['tps'] <= 100):
+                        misses += 1
+                        self.status.emit('VALID FRAME CHECKSUM — IMPLAUSIBLE VALUES DISCARDED')
+                        continue
                     misses = 0
-                    self.sample.emit(decode_frame(frame))
+                    self.sample.emit(decoded)
                     self.status.emit('ECU DATA VALID')
                 else:
                     misses += 1
